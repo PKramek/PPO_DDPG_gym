@@ -1,4 +1,6 @@
+import torch
 from torch import nn
+from torch.distributions import Normal
 
 
 class Actor(nn.Module):
@@ -20,8 +22,24 @@ class Actor(nn.Module):
             nn.Linear(in_features=64, out_features=self.action_dim)
         )
 
-    def forward(self, state):
-        return self.model(state)
+    def forward(self, state, action=None):
+        pi = self._distribution(state)
+        log_prob = None
+
+        if action is not None:
+            log_prob = self.get_log_probabilities(pi, action)
+
+        return pi, log_prob
+
+    def get_log_probabilities(self, pi, action):
+        # TODO check what sum does
+        return pi.log_prob(action).sum(axis=-1)
+
+    def _distribution(self, state):
+        mean = self.model(state)
+        std = torch.exp(self.log_std)
+
+        return Normal(mean, std)
 
 
 class Critic(nn.Module):
@@ -42,4 +60,4 @@ class Critic(nn.Module):
         )
 
     def forward(self, state):
-        self.model(state)
+        return torch.squeeze(self.model(state), -1)
