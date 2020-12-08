@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 from torch.distributions import Normal
@@ -22,8 +23,12 @@ class Actor(nn.Module):
             nn.Linear(in_features=64, out_features=self.action_dim)
         )
 
+        # TODO check why there is -0.5??
+        log_std = -0.5 * np.ones(action_dim, dtype=np.float32)
+        self.log_std = torch.nn.Parameter(torch.as_tensor(log_std))
+
     def forward(self, state, action=None):
-        pi = self._distribution(state)
+        pi = self.distribution(state)
         log_prob = None
 
         if action is not None:
@@ -31,11 +36,12 @@ class Actor(nn.Module):
 
         return pi, log_prob
 
-    def get_log_probabilities(self, pi, action):
+    @staticmethod
+    def get_log_probabilities(pi, action):
         # TODO check what sum does
         return pi.log_prob(action).sum(axis=-1)
 
-    def _distribution(self, state):
+    def distribution(self, state):
         mean = self.model(state)
         std = torch.exp(self.log_std)
 
@@ -60,4 +66,5 @@ class Critic(nn.Module):
         )
 
     def forward(self, state):
+        # TODO test what squeeze does
         return torch.squeeze(self.model(state), -1)
