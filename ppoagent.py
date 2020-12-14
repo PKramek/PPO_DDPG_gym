@@ -37,13 +37,14 @@ class PPOMemory:
 
         self.index += 1
 
-    def calculate_advantages(self, current_value: float = 0):
+    def finish_trajectory(self, current_value: float = 0):
         path_slice = slice(self.path_start_index, self.index)
 
         values = np.append(self.value_memory[path_slice], current_value)
         rewards = np.append(self.reward_memory[path_slice], current_value)
+        print('Mean rewards: {}'.format(np.mean(rewards)))
 
-        delta_t = rewards[:-1] + self.gamma * values - values  # equation 12 from paper
+        delta_t = rewards[:-1] + self.gamma * values[:-1] - values[:-1]  # equation 12 from paper
         # TODO check if it works
         self.advantage_memory[path_slice] = self.discouted_cumulative_sum(delta_t, self.lambda_ * self.gamma)
         self.ret_memory[path_slice] = self.discouted_cumulative_sum(rewards, self.gamma)[:-1]
@@ -53,6 +54,7 @@ class PPOMemory:
     def get(self):
         assert self.index == self.max_size
         self.index = 0
+        self.path_start_index = 0
 
         self._normalize_advantage()
         data = dict(observations=self.state_memory, actions=self.action_memory, rewards=self.reward_memory,
@@ -69,25 +71,27 @@ class PPOMemory:
         return y[::-1]
 
     def _normalize_advantage(self):
-        assert self.index == self.max_size
+        numpy_advantages = np.array(self.advantage_memory, dtype=np.float32)
 
-        adv_sum = np.sum(self.advantage_memory)
-        adv_len = len(self.advantage_memory)
+        adv_sum = np.sum(numpy_advantages)
+        adv_len = len(numpy_advantages)
 
         mean_advantage = adv_sum / adv_len
-        std_advantage = np.sum(np.sqrt(self.advantage_memory - mean_advantage) ** 2) / adv_len
+        squared_sqrt = (numpy_advantages - mean_advantage) ** 2
+        std_advantage = np.sum(squared_sqrt) / adv_len
 
         self.advantage_memory = (self.advantage_memory - mean_advantage) / std_advantage
 
 
 class PPOAgent:
-    def __init__(self, state_dim: int, action_dim: int, epochs: int, horizon_len: int, actor_lr: float,
-                 critic_lr: float, gamma: float, lambda_: float, epsilon: float,
+    def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, max_epoch_len: int,
+                 actor_lr: float, critic_lr: float, gamma: float, lambda_: float, epsilon: float,
                  actor_activation=None, critic_activation=None):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
-        self.epochs = epochs
+        self.epochs_num = epochs_num
+        self.max_epoch_len = max_epoch_len
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
         self.gamma = gamma
@@ -99,13 +103,15 @@ class PPOAgent:
         self.train_actor_iterations = 80
         self.train_critic_iterations = 80
 
-        if torch.cuda.is_available():
-            self.device = torch.device('cuda:0')
-        else:
-            self.device = torch.device('cpu')
-
         self.actor = Actor(state_dim, action_dim, actor_activation)
         self.critic = Critic(state_dim, critic_activation)
+
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda:0')
+            # self.actor.cuda(self.device)
+            # self.critic.cuda(self.device)
+        else:
+            self.device = torch.device('cpu')
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.actor_lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.critic_lr)
@@ -138,10 +144,6 @@ class PPOAgent:
     def update(self):
         data = self.memory.get()
 
-        # actor_loss_old = self.actor_loss(data)
-        # critic_loss_old = self.critic_loss(data)
-
-        # TODO learn how tf does it work???
         for i in range(self.train_actor_iterations):
             self.actor_optimizer.zero_grad()
             actor_loss = self.actor_loss(data)
@@ -155,23 +157,24 @@ class PPOAgent:
             self.critic_optimizer.step()
 
     def actor_critic_step(self, state):
-        actor_policy = self.actor.distribution(state)
-        action = actor_policy.sample()
-        log_probability = self.actor.get_log_probabilities(actor_policy, action)
-        value = self.critic(state)
+        with torch.no_grad():
+            actor_policy = self.actor.distribution(state)
+            action = actor_policy.sample()
+            log_probability = self.actor.get_log_probabilities(actor_policy, action)
+            value = self.critic(state)
 
-        return action.detach().numpy(), value.detach().numpy(), log_probability.detach().numpy()
+        return action.numpy(), value.numpy(), log_probability.numpy()
 
     def run(self, env):
         start_time = time()
-
         state, ep_return, ep_length = env.reset(), 0, 0
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.epochs_num):
             for i in range(self.horizon_len):
                 action, value, log_probability = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
 
                 next_state, reward, done, _ = env.step(action)
+                # env.render()
 
                 ep_return += reward
                 ep_length += 1
@@ -179,18 +182,22 @@ class PPOAgent:
                 self.memory.store(state, action, reward, value, log_probability)
 
                 state = next_state
-                epoch_ended = i == self.horizon_len
-                if epoch_ended or done:
-                    if epoch_ended:
+
+                timeout = ep_length == self.max_epoch_len
+                terminal = done or timeout
+                epoch_ended = i == self.horizon_len - 1
+
+                if terminal or epoch_ended:
+                    if epoch_ended and not terminal:
+                        print('Warning: trajectory cut off by epoch at %d steps.' % ep_length, flush=True)
+                    if timeout or epoch_ended:
                         _, v, _ = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
                     else:
                         v = 0
-                    self.memory.calculate_advantages(v)
-
-                env.render()
-                state, ep_return, ep_length = env.reset(), 0, 0
+                    self.memory.finish_trajectory(v)
+                    state, ep_return, ep_length = env.reset(), 0, 0
 
             self.update()
-
+        env.close()
         duration = time() - start_time
         logging.info('exec time: {}'.format(duration))

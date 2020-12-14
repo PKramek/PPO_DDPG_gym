@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.distributions import Normal
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Actor(nn.Module):
 
