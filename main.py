@@ -29,7 +29,7 @@ actor_learning_rate = 3e-4
 critic_learning_rate = 1e-3
 train_actor_iterations = 80
 train_critic_iterations = 80
-minibatch_size = 128
+minibatch_size = 64
 
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
