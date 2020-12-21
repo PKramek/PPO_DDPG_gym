@@ -40,6 +40,6 @@ agent = PPOAgent(
 print(agent.actor)
 print(agent.critic)
 
-# agent.run(env)
-agent.play(env, 'output_models/actor_2500.pkl', 'output_models/critic_2500.pkl')
+agent.run(env)
+
 
