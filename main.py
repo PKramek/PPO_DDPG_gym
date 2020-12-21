@@ -1,7 +1,7 @@
 import gym
 import torch
 
-from ppoagent import PPOAgent
+from PPO.ppoagent import PPOAgent
 
 assert torch.cuda.is_available()
 

@@ -5,7 +5,7 @@ import torch
 from scipy import signal
 from torch import optim
 
-from model import Actor, Critic
+from PPO.model import Actor, Critic
 
 
 class PPOMemory:
