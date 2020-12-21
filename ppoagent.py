@@ -14,7 +14,7 @@ class PPOMemory:
         self.action_memory = np.zeros((buffer_size, action_dim), dtype=np.float32)
         self.advantage_memory = np.zeros(buffer_size, dtype=np.float32)
         self.reward_memory = np.zeros(buffer_size, dtype=np.float32)
-        self.ret_memory = np.zeros(buffer_size, dtype=np.float32)
+        self.rewards_to_go_memory = np.zeros(buffer_size, dtype=np.float32)
         self.value_memory = np.zeros(buffer_size, dtype=np.float32)
         self.log_prob_memory = np.zeros(buffer_size, dtype=np.float32)
 
@@ -42,10 +42,9 @@ class PPOMemory:
         rewards = np.append(self.reward_memory[path_slice], current_value)
         values = np.append(self.value_memory[path_slice], current_value)
 
-        delta_t = rewards[:-1] + self.gamma * values[1:] - values[:-1]  # equation 12 from paper
-
-        self.advantage_memory[path_slice] = self.discouted_cumulative_sum(delta_t, self.gamma * self.lambda_)
-        self.ret_memory[path_slice] = self.discouted_cumulative_sum(rewards, self.gamma)[:-1]
+        daltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]  # equation 12 from paper
+        self.advantage_memory[path_slice] = self.discouted_cumulative_sum(daltas, self.gamma * self.lambda_)
+        self.rewards_to_go_memory[path_slice] = self.discouted_cumulative_sum(rewards, self.gamma)[:-1]
 
         self.path_start_index = self.index
 
@@ -56,7 +55,7 @@ class PPOMemory:
 
         self._normalize_advantage()
 
-        data = dict(observations=self.state_memory, actions=self.action_memory, ret=self.ret_memory,
+        data = dict(states=self.state_memory, actions=self.action_memory, rewards_to_go=self.rewards_to_go_memory,
                     advantages=self.advantage_memory, log_probabilities=self.log_prob_memory)
 
         return {key: torch.as_tensor(value, dtype=torch.float32) for key, value in data.items()}
@@ -84,15 +83,16 @@ class PPOMemory:
 
 
 class PPOAgent:
-    def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, max_epoch_len: int,
-                 actor_lr: float, critic_lr: float, actor_train_iter: int, critic_train_iter, gamma: float,
-                 lambda_: float, epsilon: float,
-                 actor_activation=None, critic_activation=None):
+    def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, timesteps_per_epoch: int,
+                 max_timesteps_per_epoch: int, actor_lr: float, critic_lr: float,
+                 actor_train_iter: int, critic_train_iter: int, minibatch_size: int,
+                 gamma: float, lambda_: float, epsilon: float, actor_activation=None, critic_activation=None):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.epochs_num = epochs_num
-        self.max_epoch_len = max_epoch_len
+        self.timesteps_per_epoch = timesteps_per_epoch  # combined
+        self.max_timesteps_per_epoch = max_timesteps_per_epoch  # for a single agent
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
         self.gamma = gamma
@@ -111,41 +111,59 @@ class PPOAgent:
 
         self.memory = PPOMemory(state_dim, action_dim, horizon_len, gamma, lambda_, )
 
-        self.minibatch_size = 64
+        self.minibatch_size = minibatch_size
+
+        self.target_kl = 0.01
 
     def actor_loss(self, data, minibatch_indexes):
-        observations = data['observations'][minibatch_indexes]
+        states = data['states'][minibatch_indexes]
         actions = data['actions'][minibatch_indexes]
         advantages = data['advantages'][minibatch_indexes]
         log_probabilities_old = data['log_probabilities'][minibatch_indexes]
 
-        pi, log_probabilities = self.actor(observations, actions)
-        r = torch.exp(log_probabilities - log_probabilities_old)
+        pi, log_probabilities = self.actor(states, actions)
+        ratio = torch.exp(log_probabilities - log_probabilities_old)
 
-        clipped_advantage = torch.clamp(r, 1 - self.epsilon, 1 + self.epsilon) * advantages
-        # TODO check why minus?
-        actor_loss = -(torch.min(r * advantages, clipped_advantage)).mean()
+        clipped_advantage = torch.clamp(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantages
+        ratio_times_advantage = ratio * advantages
 
-        return actor_loss
+        actor_loss = - torch.mean(torch.min(ratio_times_advantage, clipped_advantage))
+
+        apox_kl = (log_probabilities_old - log_probabilities).mean().item()
+        entropy = pi.entropy().mean().item()
+        clipped = ratio.lt(1.0 - self.epsilon) | ratio.gt(1.0 + self.epsilon)
+        clip_fraction = torch.as_tensor(clipped, dtype=torch.float32).mean().item()
+        pi_info = dict(kl=apox_kl, entropy=entropy, cf=clip_fraction)
+
+        return actor_loss, pi_info
 
     def critic_loss(self, data, minibatch_indexes):
-        observations = data['observations'][minibatch_indexes]
-        ret = data['ret'][minibatch_indexes]
+        observations = data['states'][minibatch_indexes]
+        ret = data['rewards_to_go'][minibatch_indexes]
 
-        estimates = self.critic(observations)
-        critic_loss = ((estimates - ret) ** 2).mean()
+        critic_loss = ((self.critic(observations) - ret) ** 2).mean()
+
         return critic_loss
 
     def get_minibatch_indicies(self):
+        #TODO check if it should be random or rather series
         return np.random.choice(self.horizon_len, self.minibatch_size)
 
     def update(self):
         data = self.memory.get()
+        all_data_indexes = np.arange(self.horizon_len)
+        actor_loss_old, pi_info_old = self.actor_loss(data, all_data_indexes)
+        actor_loss_old = actor_loss_old.item()
+        critic_loss_old = self.critic_loss(data, all_data_indexes)
 
         for i in range(self.train_actor_iterations):
             minibatch_indexes = self.get_minibatch_indicies()
             self.actor_optimizer.zero_grad()
-            actor_loss = self.actor_loss(data, minibatch_indexes)
+            actor_loss, pi_info = self.actor_loss(data, minibatch_indexes)
+            kl = pi_info['kl']
+            # if kl > 1.5 * self.target_kl:
+            #     print('Stopping update, reached max kl {}'.format(i))
+            #     break
             actor_loss.backward()
             self.actor_optimizer.step()
 
@@ -155,6 +173,17 @@ class PPOAgent:
             critic_loss = self.critic_loss(data, minibatch_indexes)
             critic_loss.backward()
             self.critic_optimizer.step()
+
+        with torch.no_grad():
+            actor_loss, _ = self.actor_loss(data, all_data_indexes)
+            actor_loss = actor_loss.item()
+            critic_loss = self.critic_loss(data, all_data_indexes)
+            critic_loss = critic_loss.item()
+
+        print('Actor loss: {:.6f}, Critic loss : {:.6f},KL: {:.6f}, Delta loss pi: {:.6f} Delta loss v: {:.6f}'.format(
+            actor_loss_old, critic_loss_old, 1, actor_loss - actor_loss_old,
+                                                critic_loss - critic_loss_old))
+        print('\n')
 
     def actor_critic_step(self, state):
         with torch.no_grad():
@@ -167,61 +196,62 @@ class PPOAgent:
 
     def run(self, env):
         start_time = time()
-        prev_episode_return = 0
-        state, ep_return, ep_length = env.reset(), 0, 0
+        state, ep_return, timestep_in_horizon = env.reset(), 0, 0
+        for epoch in range(1, self.epochs_num + 1):
+            print("*" * 50 + 'EPOCH {}'.format(epoch) + "*" * 50)
 
-        for epoch in range(self.epochs_num):
-            print('Update: {}, mean reward = {:.3f}, episode return = {:.3f}'.format(
-                epoch, self.memory.get_mean_reward(), prev_episode_return))
-            for i in range(self.horizon_len):
+            for timestep in range(self.horizon_len):
                 action, value, log_probability = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
-
                 next_state, reward, done, _ = env.step(action)
-                env.render()
 
                 ep_return += reward
-                ep_length += 1
+                timestep_in_horizon += 1
 
                 self.memory.store(state, action, reward, value, log_probability)
 
+                # Find equation
                 state = next_state
+                timeout = timestep_in_horizon == self.max_timesteps_per_epoch
+                is_terminal = done or timeout
+                epoch_ended = timestep == self.horizon_len - 1
 
-                timeout = ep_length == self.max_epoch_len
-                terminal = done or timeout
-                epoch_ended = i == self.horizon_len - 1
-
-                if terminal or epoch_ended:
-                    if epoch_ended and not terminal:
-                        print('Warning: trajectory cut off by epoch at %d steps.' % ep_length, flush=True)
-                        pass
+                if is_terminal or epoch_ended:
+                    if epoch_ended and not is_terminal:
+                        print('Warning: trajectory cut off by epoch at %d steps.' % timestep_in_horizon, flush=True)
                     if timeout or epoch_ended:
-                        _, v, _ = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
+                        _, value, _ = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
                     else:
-                        v = 0
-                    self.memory.finish_trajectory(v)
-                    prev_episode_return = ep_return
-                    state, ep_return, ep_length = env.reset(), 0, 0
+                        value = 0
+
+                    self.memory.finish_trajectory(value)
+                    if is_terminal:
+                        print("Episode return: {}, Episode_len: {}, Mean return per step: {}".format(
+                            ep_return,
+                            timestep_in_horizon,
+                            ep_return / float(timestep_in_horizon)))
+                    state, ep_return, timestep_in_horizon = env.reset(), 0, 0
 
             self.update()
 
             if epoch % 500 == 0:
                 actor_path = 'output_models/actor_{}.pkl'.format(epoch)
                 critic_path = 'output_models/critic_{}.pkl'.format(epoch)
+                torch.save(self.actor.state_dict(), actor_path)
 
-                torch.save(self.actor.model, actor_path)
-                torch.save(self.critic.model, critic_path)
+                torch.save(self.critic.state_dict(), critic_path)
 
-        env.close()
-        duration = time() - start_time
-        print('exec time: {}'.format(duration))
+        print("Exec time: {:.3f}s".format(time() - start_time))
 
     def play(self, env, actor_model_path, critic_model_path):
-        self.actor.model = torch.load(actor_model_path)
-        self.critic.model = torch.load(critic_model_path)
+        self.actor.load_state_dict(torch.load(actor_model_path))
+        self.critic.load_state_dict(torch.load(critic_model_path))
 
         for i in range(self.epochs_num):
             state, ep_return, ep_length = env.reset(), 0, 0
-            for j in range(self.max_epoch_len):
+            for j in range(self.timesteps_per_epoch):
                 action, value, log_probability = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
                 next_state, reward, done, _ = env.step(action)
+                state = next_state
                 env.render()
+                if done:
+                    break
