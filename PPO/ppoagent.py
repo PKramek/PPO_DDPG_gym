@@ -7,16 +7,18 @@ from torch import optim
 
 from PPO.model import Actor, Critic
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 class PPOMemory:
-    def __init__(self, state_dim, action_dim, buffer_size, gamma, lambda_):
-        self.state_memory = np.zeros((buffer_size, state_dim), dtype=np.float32)
-        self.action_memory = np.zeros((buffer_size, action_dim), dtype=np.float32)
-        self.advantage_memory = np.zeros(buffer_size, dtype=np.float32)
-        self.reward_memory = np.zeros(buffer_size, dtype=np.float32)
-        self.rewards_to_go_memory = np.zeros(buffer_size, dtype=np.float32)
-        self.value_memory = np.zeros(buffer_size, dtype=np.float32)
-        self.log_prob_memory = np.zeros(buffer_size, dtype=np.float32)
+    def __init__(self, state_dim, action_dim, buffer_size, gamma, lambda_, device='cpu'):
+        self.state_memory = torch.zeros((buffer_size, state_dim), dtype=torch.float32, device=device)
+        self.action_memory = torch.zeros((buffer_size, action_dim), dtype=torch.float32, device=device)
+        self.advantage_memory = torch.zeros(buffer_size, dtype=torch.float32, device=device)
+        self.reward_memory = torch.zeros(buffer_size, dtype=torch.float32, device=device)
+        self.rewards_to_go_memory = torch.zeros(buffer_size, dtype=torch.float32, device=device)
+        self.value_memory = torch.zeros(buffer_size, dtype=torch.float32, device=device)
+        self.log_prob_memory = torch.zeros(buffer_size, dtype=torch.float32, device=device)
 
         self.gamma = gamma
         self.lambda_ = lambda_
@@ -24,6 +26,8 @@ class PPOMemory:
         self.index = 0
         self.path_start_index = 0
         self.max_size = buffer_size
+
+        self.device = device
 
     def store(self, state, action, reward, value, log_prob):
         assert self.index < self.max_size
@@ -38,9 +42,11 @@ class PPOMemory:
 
     def end_episode(self, current_value: float = 0):
         path_slice = slice(self.path_start_index, self.index)
-
-        rewards = np.append(self.reward_memory[path_slice], current_value)
-        values = np.append(self.value_memory[path_slice], current_value)
+        current_value_tensor = torch.tensor([current_value], device=self.device)
+        rewards = torch.cat((self.reward_memory[path_slice], current_value_tensor))
+        values = torch.cat((self.value_memory[path_slice], current_value_tensor))
+        # rewards = np.append(self.reward_memory[path_slice], current_value)
+        # values = np.append(self.value_memory[path_slice], current_value)
 
         daltas = rewards[:-1] + self.gamma * values[1:] - values[:-1]  # equation 12 from paper
         self.advantage_memory[path_slice] = self.discouted_cumulative_sum(daltas, self.gamma * self.lambda_)
@@ -101,13 +107,15 @@ class PPOAgent:
         self.train_actor_iterations = actor_train_iter
         self.train_critic_iterations = critic_train_iter
 
-        self.actor = Actor(state_dim, action_dim, actor_activation)
-        self.critic = Critic(state_dim, critic_activation)
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        self.actor = Actor(state_dim, action_dim, actor_activation, device)
+        self.critic = Critic(state_dim, critic_activation, device)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.actor_lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.critic_lr)
 
-        self.memory = PPOMemory(state_dim, action_dim, horizon_len, gamma, lambda_, )
+        self.memory = PPOMemory(state_dim, action_dim, horizon_len, gamma, lambda_, device)
 
         self.minibatch_size = minibatch_size
 
@@ -177,10 +185,7 @@ class PPOAgent:
             log_probability = self.actor.get_log_probabilities(actor_policy, action)
             value = self.critic(state)
 
-        return action.numpy(), value.numpy(), log_probability.numpy()
-
-    def collect_expirience(self, env):
-        pass
+        return action, value, log_probability
 
     def run(self, env):
         start_time = time()
@@ -189,8 +194,11 @@ class PPOAgent:
             print("*" * 50 + 'EPOCH {}'.format(epoch) + "*" * 50)
 
             for timestep in range(self.horizon_len):
-                action, value, log_probability = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
-                next_state, reward, done, _ = env.step(action)
+                state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
+                action, value, log_probability = self.actor_critic_step(state)
+                # TODO change this
+                action_numpy = action.cpu().numpy()
+                next_state, reward, done, _ = env.step(action_numpy)
 
                 ep_return += reward
                 timestep_in_horizon += 1
@@ -206,7 +214,8 @@ class PPOAgent:
                     if epoch_ended and not is_terminal:
                         print('Warning: trajectory cut off by epoch at %d steps.' % timestep_in_horizon, flush=True)
                     if timeout or epoch_ended:
-                        _, value, _ = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
+                        _, value, _ = self.actor_critic_step(
+                            torch.as_tensor(state, dtype=torch.float32, device=self.device))
                     else:
                         value = 0
 
@@ -236,7 +245,8 @@ class PPOAgent:
         for i in range(self.epochs_num):
             state, ep_return, ep_length = env.reset(), 0, 0
             for j in range(self.timesteps_per_epoch):
-                action, value, log_probability = self.actor_critic_step(torch.as_tensor(state, dtype=torch.float32))
+                step = torch.as_tensor(state, dtype=torch.float32, device=device)
+                action, value, log_probability = self.actor_critic_step(step)
                 next_state, reward, done, _ = env.step(action)
                 state = next_state
                 env.render()

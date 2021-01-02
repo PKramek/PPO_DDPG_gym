@@ -39,6 +39,6 @@ agent = PPOAgent(
 print(agent.actor)
 print(agent.critic)
 
-# agent.run(env)
+agent.run(env)
 
-agent.play(env, 'trained_models/actor_2000.pkl', 'trained_models/critic_2000.pkl')
+# agent.play(env, 'trained_models/actor_2000.pkl', 'trained_models/critic_2000.pkl')
