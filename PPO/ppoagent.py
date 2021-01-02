@@ -36,7 +36,7 @@ class PPOMemory:
 
         self.index += 1
 
-    def finish_trajectory(self, current_value: float = 0):
+    def end_episode(self, current_value: float = 0):
         path_slice = slice(self.path_start_index, self.index)
 
         rewards = np.append(self.reward_memory[path_slice], current_value)
@@ -84,15 +84,13 @@ class PPOMemory:
 
 class PPOAgent:
     def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, timesteps_per_epoch: int,
-                 max_timesteps_per_epoch: int, actor_lr: float, critic_lr: float,
-                 actor_train_iter: int, critic_train_iter: int, minibatch_size: int,
+                 actor_lr: float, critic_lr: float, actor_train_iter: int, critic_train_iter: int, minibatch_size: int,
                  gamma: float, lambda_: float, epsilon: float, actor_activation=None, critic_activation=None):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.epochs_num = epochs_num
-        self.timesteps_per_epoch = timesteps_per_epoch  # combined
-        self.max_timesteps_per_epoch = max_timesteps_per_epoch  # for a single agent
+        self.timesteps_per_epoch = timesteps_per_epoch
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
         self.gamma = gamma
@@ -113,8 +111,6 @@ class PPOAgent:
 
         self.minibatch_size = minibatch_size
 
-        self.target_kl = 0.01
-
     def actor_loss(self, data, minibatch_indexes):
         states = data['states'][minibatch_indexes]
         actions = data['actions'][minibatch_indexes]
@@ -129,13 +125,7 @@ class PPOAgent:
 
         actor_loss = - torch.mean(torch.min(ratio_times_advantage, clipped_advantage))
 
-        apox_kl = (log_probabilities_old - log_probabilities).mean().item()
-        entropy = pi.entropy().mean().item()
-        clipped = ratio.lt(1.0 - self.epsilon) | ratio.gt(1.0 + self.epsilon)
-        clip_fraction = torch.as_tensor(clipped, dtype=torch.float32).mean().item()
-        pi_info = dict(kl=apox_kl, entropy=entropy, cf=clip_fraction)
-
-        return actor_loss, pi_info
+        return actor_loss
 
     def critic_loss(self, data, minibatch_indexes):
         observations = data['states'][minibatch_indexes]
@@ -146,24 +136,19 @@ class PPOAgent:
         return critic_loss
 
     def get_minibatch_indicies(self):
-        #TODO check if it should be random or rather series
         return np.random.choice(self.horizon_len, self.minibatch_size)
 
     def update(self):
         data = self.memory.get()
         all_data_indexes = np.arange(self.horizon_len)
-        actor_loss_old, pi_info_old = self.actor_loss(data, all_data_indexes)
+        actor_loss_old = self.actor_loss(data, all_data_indexes)
         actor_loss_old = actor_loss_old.item()
         critic_loss_old = self.critic_loss(data, all_data_indexes)
 
         for i in range(self.train_actor_iterations):
             minibatch_indexes = self.get_minibatch_indicies()
             self.actor_optimizer.zero_grad()
-            actor_loss, pi_info = self.actor_loss(data, minibatch_indexes)
-            kl = pi_info['kl']
-            # if kl > 1.5 * self.target_kl:
-            #     print('Stopping update, reached max kl {}'.format(i))
-            #     break
+            actor_loss = self.actor_loss(data, minibatch_indexes)
             actor_loss.backward()
             self.actor_optimizer.step()
 
@@ -175,14 +160,14 @@ class PPOAgent:
             self.critic_optimizer.step()
 
         with torch.no_grad():
-            actor_loss, _ = self.actor_loss(data, all_data_indexes)
+            actor_loss = self.actor_loss(data, all_data_indexes)
             actor_loss = actor_loss.item()
             critic_loss = self.critic_loss(data, all_data_indexes)
             critic_loss = critic_loss.item()
 
-        print('Actor loss: {:.6f}, Critic loss : {:.6f},KL: {:.6f}, Delta loss pi: {:.6f} Delta loss v: {:.6f}'.format(
-            actor_loss_old, critic_loss_old, 1, actor_loss - actor_loss_old,
-                                                critic_loss - critic_loss_old))
+        print('Actor loss: {:.6f}, Critic loss : {:.6f}, Delta loss pi: {:.6f} Delta loss v: {:.6f}'.format(
+            actor_loss_old, critic_loss_old, actor_loss - actor_loss_old,
+                                             critic_loss - critic_loss_old))
         print('\n')
 
     def actor_critic_step(self, state):
@@ -193,6 +178,9 @@ class PPOAgent:
             value = self.critic(state)
 
         return action.numpy(), value.numpy(), log_probability.numpy()
+
+    def collect_expirience(self, env):
+        pass
 
     def run(self, env):
         start_time = time()
@@ -209,9 +197,8 @@ class PPOAgent:
 
                 self.memory.store(state, action, reward, value, log_probability)
 
-                # Find equation
                 state = next_state
-                timeout = timestep_in_horizon == self.max_timesteps_per_epoch
+                timeout = timestep_in_horizon == self.timesteps_per_epoch
                 is_terminal = done or timeout
                 epoch_ended = timestep == self.horizon_len - 1
 
@@ -223,7 +210,7 @@ class PPOAgent:
                     else:
                         value = 0
 
-                    self.memory.finish_trajectory(value)
+                    self.memory.end_episode(value)
                     if is_terminal:
                         print("Episode return: {}, Episode_len: {}, Mean return per step: {}".format(
                             ep_return,
@@ -234,8 +221,8 @@ class PPOAgent:
             self.update()
 
             if epoch % 500 == 0:
-                actor_path = 'output_models/actor_{}.pkl'.format(epoch)
-                critic_path = 'output_models/critic_{}.pkl'.format(epoch)
+                actor_path = 'trained_models/actor_{}.pkl'.format(epoch)
+                critic_path = 'trained_models/critic_{}.pkl'.format(epoch)
                 torch.save(self.actor.state_dict(), actor_path)
 
                 torch.save(self.critic.state_dict(), critic_path)

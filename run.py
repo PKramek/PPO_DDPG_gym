@@ -16,7 +16,7 @@ def cut_timestep_in_half(env):
     env.model.opt.timestep = env.model.opt.timestep / 2
 
 
-env = gym.make('HalfCheetah-v2')
+env = gym.make('Walker2d-v2')
 
 horizon_len = 4000
 timesteps_per_epoch = 1000
@@ -35,8 +35,8 @@ state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 
 agent = PPOAgent(
-    state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, max_timesteps_per_epoch, actor_learning_rate,
-    critic_learning_rate, train_actor_iterations, train_critic_iterations, minibatch_size, gamma, lambda_, epsilon)
+    state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, actor_learning_rate, critic_learning_rate,
+    train_actor_iterations, train_critic_iterations, minibatch_size, gamma, lambda_, epsilon)
 print(agent.actor)
 print(agent.critic)
 
