@@ -125,36 +125,22 @@ class PPOAgent(Agent):
         self.save_model_interval = save_model_interval
 
     @classmethod
-    def from_config_file(cls, config_file_path, state_dim, action_dim):
+    def from_config_file(cls, config_file_path, section, state_dim, action_dim, timesteps_per_epoch):
 
         config_file = configparser.ConfigParser()
         config_file.read(config_file_path)
 
-        horizon_len = config_file.getint('PPO', 'horizon_length')
-        timesteps_per_epoch = config_file.getint('PPO', 'timesteps_per_epoch')
-        epochs = config_file.getint('PPO', 'epochs')
-        gamma = config_file.getfloat('PPO', 'gamma')
-        epsilon = config_file.getfloat('PPO', 'epsilon')
-        lambda_ = config_file.getfloat('PPO', 'lambda')
-        actor_learning_rate = config_file.getfloat('PPO', 'actor_learning_rate')
-        critic_learning_rate = config_file.getfloat('PPO', 'critic_learning_rate')
-        train_actor_iterations = config_file.getint('PPO', 'train_actor_iterations')
-        train_critic_iterations = config_file.getint('PPO', 'train_critic_iterations')
-        minibatch_size = config_file.getint('PPO', 'minibatch_size')
-        hidden_size = config_file.getint('PPO', 'hidden_size')
-
-        # horizon_len = config_file.getint('PPO', 'horizon_length')
-        # timesteps_per_epoch = config_file['PPO']['timesteps_per_epoch')
-        # epochs = config_file['PPO']['epochs']
-        # gamma = config_file['PPO']['gamma']
-        # epsilon = config_file['PPO']['epsilon']
-        # lambda_ = config_file['PPO']['lambda']
-        # actor_learning_rate = config_file['PPO']['actor_learning_rate']
-        # critic_learning_rate = config_file['PPO']['critic_learning_rate']
-        # train_actor_iterations = config_file['PPO']['train_actor_iterations']
-        # train_critic_iterations = config_file['PPO']['train_critic_iterations']
-        # minibatch_size = config_file['PPO']['minibatch_size']
-        # hidden_size = config_file['PPO']['hidden_size']
+        horizon_len = config_file.getint(section, 'horizon_length')
+        epochs = config_file.getint(section, 'epochs')
+        gamma = config_file.getfloat(section, 'gamma')
+        epsilon = config_file.getfloat(section, 'epsilon')
+        lambda_ = config_file.getfloat(section, 'lambda')
+        actor_learning_rate = config_file.getfloat(section, 'actor_learning_rate')
+        critic_learning_rate = config_file.getfloat(section, 'critic_learning_rate')
+        train_actor_iterations = config_file.getint(section, 'train_actor_iterations')
+        train_critic_iterations = config_file.getint(section, 'train_critic_iterations')
+        minibatch_size = config_file.getint(section, 'minibatch_size')
+        hidden_size = config_file.getint(section, 'hidden_size')
 
         return cls(
             state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, actor_learning_rate, critic_learning_rate,
