@@ -11,8 +11,8 @@ epsilon = 0.2
 lambda_ = 0.95
 actor_learning_rate = 1e-3
 critic_learning_rate = 1e-3
-train_actor_iterations = 100
-train_critic_iterations = 100
+train_actor_iterations = 80
+train_critic_iterations = 80
 minibatch_size = 64
 hidden_size = 64
 
