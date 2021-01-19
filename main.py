@@ -99,5 +99,7 @@ if __name__ == '__main__':
 
         if not args.no_plot:
             if args.plot_path is None:
-                path = f'/results/{args.algorithm}'
+                path = f'./results/{env_spec.id}-{args.algorithm}.png'
+            else:
+                path = args.plot_path
             agent.plot_episode_returns(path)
