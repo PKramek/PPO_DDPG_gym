@@ -88,7 +88,7 @@ class PPOAgent(Agent):
     def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, timesteps_per_epoch: int,
                  actor_lr: float, critic_lr: float, actor_train_iter: int, critic_train_iter: int, minibatch_size: int,
                  gamma: float, lambda_: float, epsilon: float, actor_activation=None, critic_activation=None,
-                 device=None, hidden_size=64, benchmark_interval=10, save_model_interval = 250):
+                 device=None, hidden_size: int = 64, benchmark_interval: int = 10, save_model_interval=250):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -177,7 +177,7 @@ class PPOAgent(Agent):
             critic_loss = self.critic_loss(data, all_data_indexes)
             critic_loss = critic_loss.item()
 
-        print('Actor loss: {:.6f}, Critic loss : {:.6f}, Delta loss pi: {:.6f} Delta loss v: {:.6f}'.format(
+        print('Actor loss: {:.3f}, Critic loss : {:.3f}, Delta loss actor: {:.3f} Delta loss critic: {:.3f}'.format(
             actor_loss_old, critic_loss_old, actor_loss - actor_loss_old,
                                              critic_loss - critic_loss_old))
         print('\n')
@@ -192,7 +192,7 @@ class PPOAgent(Agent):
         return action, value, log_probability
 
     def get_avg_episode_return(self, env, n=10):
-        print(f'Inside get_avg_episode_return')
+        print(f'Calculating average episode return...')
         episodes_return = np.ones(n, dtype=np.float32)
         with torch.no_grad():
             for i in range(n):
@@ -208,10 +208,14 @@ class PPOAgent(Agent):
 
                     if done:
                         break
-                print(f'{i} episode return = {ep_return}')
+
                 episodes_return[i] = ep_return
 
-        return np.mean(episodes_return)
+        avg_return = np.mean(episodes_return)
+
+        print(f'Average episode return = {avg_return: 3f}\n')
+
+        return avg_return
 
     def train(self, env):
         start_time = time()
@@ -252,10 +256,7 @@ class PPOAgent(Agent):
 
                     self.memory.end_episode(value)
                     if is_terminal:
-                        print("Episode return: {}, Episode_len: {}, Mean return per step: {}".format(
-                            ep_return,
-                            timestep_in_horizon,
-                            ep_return / float(timestep_in_horizon)))
+                        print(f"Episode return: {ep_return: 3f}, timesteps in episode : {timestep_in_horizon}")
                     state, ep_return, timestep_in_horizon = env.reset(), 0, 0
 
             self.update()
@@ -264,8 +265,8 @@ class PPOAgent(Agent):
                 self.avg_episode_returns.append(self.get_avg_episode_return(env))
 
             if epoch % self.save_model_interval == 0:
-                actor_path = 'trained_models/actor_{}.pkl'.format(epoch)
-                critic_path = 'trained_models/critic_{}.pkl'.format(epoch)
+                actor_path = 'trained_models/PPO/actor_{}_epochs.pkl'.format(epoch)
+                critic_path = 'trained_models/PPO/critic_{}_epochs.pkl'.format(epoch)
                 torch.save(self.actor.state_dict(), actor_path)
 
                 torch.save(self.critic.state_dict(), critic_path)
