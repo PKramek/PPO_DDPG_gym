@@ -1,7 +1,7 @@
 import gym
 import torch
 
-from PPO.ppoagent import PPOAgent
+from Agents.PPO.ppoagent import PPOAgent
 
 assert torch.cuda.is_available()
 
@@ -19,8 +19,7 @@ def cut_timestep_in_half(env):
 # env = gym.make('DoublePrecisionSwimmer-v2')
 # cut_timestep_in_half(env)
 
-env = gym.make('Hopper-v2')
-
+env = gym.make('Swimmer-v2')
 
 horizon_len = 4000
 timesteps_per_epoch = 1000
@@ -42,7 +41,6 @@ agent = PPOAgent(
     state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, actor_learning_rate, critic_learning_rate,
     train_actor_iterations, train_critic_iterations, minibatch_size, gamma, lambda_, epsilon, hidden_size=hidden_size)
 
-
-# agent.run(env)
+agent.train(env)
 agent.plot_episode_returns('results/PPO.png')
-agent.play(env, 'trained_models/actor_250.pkl', 'trained_models/critic_250.pkl')
+# agent.play(env, 'trained_models/actor_250.pkl', 'trained_models/critic_250.pkl')

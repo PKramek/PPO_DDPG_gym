@@ -6,7 +6,8 @@ import torch
 from scipy import signal
 from torch import optim
 
-from PPO.model import Actor, Critic
+from Agents.Agent import Agent
+from Agents.PPO.model import Actor, Critic
 
 
 class PPOMemory:
@@ -83,11 +84,11 @@ class PPOMemory:
         return y[::-1]
 
 
-class PPOAgent:
+class PPOAgent(Agent):
     def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, timesteps_per_epoch: int,
                  actor_lr: float, critic_lr: float, actor_train_iter: int, critic_train_iter: int, minibatch_size: int,
                  gamma: float, lambda_: float, epsilon: float, actor_activation=None, critic_activation=None,
-                 device=None, hidden_size=64, benchmark_interval=10):
+                 device=None, hidden_size=64, benchmark_interval=10, save_model_interval = 250):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -120,6 +121,7 @@ class PPOAgent:
 
         self.avg_episode_returns = []
         self.benchmark_interval = benchmark_interval
+        self.save_model_interval = save_model_interval
 
     def actor_loss(self, data, minibatch_indexes):
         states = data['states'][minibatch_indexes]
@@ -211,7 +213,7 @@ class PPOAgent:
 
         return np.mean(episodes_return)
 
-    def run(self, env):
+    def train(self, env):
         start_time = time()
         state, ep_return, timestep_in_horizon = env.reset(), 0, 0
 
@@ -261,7 +263,7 @@ class PPOAgent:
             if epoch % self.benchmark_interval == 0:
                 self.avg_episode_returns.append(self.get_avg_episode_return(env))
 
-            if epoch % 250 == 0:
+            if epoch % self.save_model_interval == 0:
                 actor_path = 'trained_models/actor_{}.pkl'.format(epoch)
                 critic_path = 'trained_models/critic_{}.pkl'.format(epoch)
                 torch.save(self.actor.state_dict(), actor_path)
