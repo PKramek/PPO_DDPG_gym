@@ -1,3 +1,4 @@
+import configparser
 from time import time
 
 import matplotlib.pyplot as plt
@@ -6,7 +7,8 @@ import torch
 from scipy import signal
 from torch import optim
 
-from PPO.model import Actor, Critic
+from Agents.Agent import Agent
+from Agents.PPO.model import Actor, Critic
 
 
 class PPOMemory:
@@ -83,11 +85,11 @@ class PPOMemory:
         return y[::-1]
 
 
-class PPOAgent:
+class PPOAgent(Agent):
     def __init__(self, state_dim: int, action_dim: int, epochs_num: int, horizon_len: int, timesteps_per_epoch: int,
                  actor_lr: float, critic_lr: float, actor_train_iter: int, critic_train_iter: int, minibatch_size: int,
                  gamma: float, lambda_: float, epsilon: float, actor_activation=None, critic_activation=None,
-                 device=None, hidden_size=64, benchmark_interval=10):
+                 device=None, hidden_size: int = 64, benchmark_interval: int = 10, save_model_interval=250):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -120,6 +122,30 @@ class PPOAgent:
 
         self.avg_episode_returns = []
         self.benchmark_interval = benchmark_interval
+        self.save_model_interval = save_model_interval
+
+    @classmethod
+    def from_config_file(cls, config_file_path, section, state_dim, action_dim, timesteps_per_epoch):
+
+        config_file = configparser.ConfigParser()
+        config_file.read(config_file_path)
+
+        horizon_len = config_file.getint(section, 'horizon_length')
+        epochs = config_file.getint(section, 'epochs')
+        gamma = config_file.getfloat(section, 'gamma')
+        epsilon = config_file.getfloat(section, 'epsilon')
+        lambda_ = config_file.getfloat(section, 'lambda')
+        actor_learning_rate = config_file.getfloat(section, 'actor_learning_rate')
+        critic_learning_rate = config_file.getfloat(section, 'critic_learning_rate')
+        train_actor_iterations = config_file.getint(section, 'train_actor_iterations')
+        train_critic_iterations = config_file.getint(section, 'train_critic_iterations')
+        minibatch_size = config_file.getint(section, 'minibatch_size')
+        hidden_size = config_file.getint(section, 'hidden_size')
+
+        return cls(
+            state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, actor_learning_rate, critic_learning_rate,
+            train_actor_iterations, train_critic_iterations, minibatch_size, gamma, lambda_, epsilon,
+            hidden_size=hidden_size)
 
     def actor_loss(self, data, minibatch_indexes):
         states = data['states'][minibatch_indexes]
@@ -175,7 +201,7 @@ class PPOAgent:
             critic_loss = self.critic_loss(data, all_data_indexes)
             critic_loss = critic_loss.item()
 
-        print('Actor loss: {:.6f}, Critic loss : {:.6f}, Delta loss pi: {:.6f} Delta loss v: {:.6f}'.format(
+        print('Actor loss: {:.3f}, Critic loss : {:.3f}, Delta loss actor: {:.3f} Delta loss critic: {:.3f}'.format(
             actor_loss_old, critic_loss_old, actor_loss - actor_loss_old,
                                              critic_loss - critic_loss_old))
         print('\n')
@@ -190,7 +216,7 @@ class PPOAgent:
         return action, value, log_probability
 
     def get_avg_episode_return(self, env, n=10):
-        print(f'Inside get_avg_episode_return')
+        print(f'Calculating average episode return...')
         episodes_return = np.ones(n, dtype=np.float32)
         with torch.no_grad():
             for i in range(n):
@@ -206,14 +232,19 @@ class PPOAgent:
 
                     if done:
                         break
-                print(f'{i} episode return = {ep_return}')
+
                 episodes_return[i] = ep_return
 
-        return np.mean(episodes_return)
+        avg_return = np.mean(episodes_return)
 
-    def run(self, env):
+        print(f'Average episode return = {avg_return: 3f}\n')
+
+        return avg_return
+
+    def train(self, env):
         start_time = time()
         state, ep_return, timestep_in_horizon = env.reset(), 0, 0
+        env_name = env.spec.id
 
         self.avg_episode_returns = []
 
@@ -250,10 +281,7 @@ class PPOAgent:
 
                     self.memory.end_episode(value)
                     if is_terminal:
-                        print("Episode return: {}, Episode_len: {}, Mean return per step: {}".format(
-                            ep_return,
-                            timestep_in_horizon,
-                            ep_return / float(timestep_in_horizon)))
+                        print(f"Episode return: {ep_return: 3f}, timesteps in episode : {timestep_in_horizon}")
                     state, ep_return, timestep_in_horizon = env.reset(), 0, 0
 
             self.update()
@@ -261,12 +289,13 @@ class PPOAgent:
             if epoch % self.benchmark_interval == 0:
                 self.avg_episode_returns.append(self.get_avg_episode_return(env))
 
-            if epoch % 250 == 0:
-                actor_path = 'trained_models/actor_{}.pkl'.format(epoch)
-                critic_path = 'trained_models/critic_{}.pkl'.format(epoch)
+            if epoch % self.save_model_interval == 0:
+                # saving models
+                actor_path = 'trained_models/PPO/{}_actor_{}_epochs.pkl'.format(epoch, env_name)
+                critic_path = 'trained_models/PPO/{}_critic_{}_epochs.pkl'.format(epoch, env_name)
                 torch.save(self.actor.state_dict(), actor_path)
-
                 torch.save(self.critic.state_dict(), critic_path)
+
             print(f'Epoch exec time {time() - epoch_start_time}s')
 
         print("Exec time: {:.3f}s".format(time() - start_time))
