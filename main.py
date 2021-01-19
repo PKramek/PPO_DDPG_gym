@@ -1,9 +1,8 @@
+import configparser
+
 import gym
-import torch
 
 from Agents.PPO.ppoagent import PPOAgent
-
-assert torch.cuda.is_available()
 
 gym.envs.register(
     id='DoublePrecisionSwimmer-v2',
@@ -34,13 +33,30 @@ train_critic_iterations = 150
 minibatch_size = 64
 hidden_size = 64
 
+config = configparser.ConfigParser()
+config['PPO'] = {
+    'horizon_length': horizon_len,
+    'timesteps_per_epoch': timesteps_per_epoch,
+    'epochs': epochs,
+    'gamma': gamma,
+    'epsilon': epsilon,
+    'lambda': lambda_,
+    'actor_learning_rate': actor_learning_rate,
+    'critic_learning_rate': critic_learning_rate,
+    'train_actor_iterations': train_actor_iterations,
+    'train_critic_iterations': train_critic_iterations,
+    'minibatch_size': minibatch_size,
+    'hidden_size': hidden_size
+}
+
+
+with open('example.ini', 'w') as configfile:
+    config.write(configfile)
+
 state_dim = env.observation_space.shape[0]
 action_dim = env.action_space.shape[0]
 
-agent = PPOAgent(
-    state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, actor_learning_rate, critic_learning_rate,
-    train_actor_iterations, train_critic_iterations, minibatch_size, gamma, lambda_, epsilon, hidden_size=hidden_size)
+agent = PPOAgent.from_config_file('example.ini', state_dim, action_dim)
 
 agent.train(env)
 agent.plot_episode_returns('results/PPO.png')
-# agent.play(env, 'trained_models/actor_250.pkl', 'trained_models/critic_250.pkl')

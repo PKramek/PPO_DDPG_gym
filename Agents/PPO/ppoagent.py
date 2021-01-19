@@ -1,3 +1,4 @@
+import configparser
 from time import time
 
 import matplotlib.pyplot as plt
@@ -122,6 +123,43 @@ class PPOAgent(Agent):
         self.avg_episode_returns = []
         self.benchmark_interval = benchmark_interval
         self.save_model_interval = save_model_interval
+
+    @classmethod
+    def from_config_file(cls, config_file_path, state_dim, action_dim):
+
+        config_file = configparser.ConfigParser()
+        config_file.read(config_file_path)
+
+        horizon_len = config_file.getint('PPO', 'horizon_length')
+        timesteps_per_epoch = config_file.getint('PPO', 'timesteps_per_epoch')
+        epochs = config_file.getint('PPO', 'epochs')
+        gamma = config_file.getfloat('PPO', 'gamma')
+        epsilon = config_file.getfloat('PPO', 'epsilon')
+        lambda_ = config_file.getfloat('PPO', 'lambda')
+        actor_learning_rate = config_file.getfloat('PPO', 'actor_learning_rate')
+        critic_learning_rate = config_file.getfloat('PPO', 'critic_learning_rate')
+        train_actor_iterations = config_file.getint('PPO', 'train_actor_iterations')
+        train_critic_iterations = config_file.getint('PPO', 'train_critic_iterations')
+        minibatch_size = config_file.getint('PPO', 'minibatch_size')
+        hidden_size = config_file.getint('PPO', 'hidden_size')
+
+        # horizon_len = config_file.getint('PPO', 'horizon_length')
+        # timesteps_per_epoch = config_file['PPO']['timesteps_per_epoch')
+        # epochs = config_file['PPO']['epochs']
+        # gamma = config_file['PPO']['gamma']
+        # epsilon = config_file['PPO']['epsilon']
+        # lambda_ = config_file['PPO']['lambda']
+        # actor_learning_rate = config_file['PPO']['actor_learning_rate']
+        # critic_learning_rate = config_file['PPO']['critic_learning_rate']
+        # train_actor_iterations = config_file['PPO']['train_actor_iterations']
+        # train_critic_iterations = config_file['PPO']['train_critic_iterations']
+        # minibatch_size = config_file['PPO']['minibatch_size']
+        # hidden_size = config_file['PPO']['hidden_size']
+
+        return cls(
+            state_dim, action_dim, epochs, horizon_len, timesteps_per_epoch, actor_learning_rate, critic_learning_rate,
+            train_actor_iterations, train_critic_iterations, minibatch_size, gamma, lambda_, epsilon,
+            hidden_size=hidden_size)
 
     def actor_loss(self, data, minibatch_indexes):
         states = data['states'][minibatch_indexes]
