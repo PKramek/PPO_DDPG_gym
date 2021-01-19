@@ -244,6 +244,7 @@ class PPOAgent(Agent):
     def train(self, env):
         start_time = time()
         state, ep_return, timestep_in_horizon = env.reset(), 0, 0
+        env_name = env.spec.id
 
         self.avg_episode_returns = []
 
@@ -289,11 +290,12 @@ class PPOAgent(Agent):
                 self.avg_episode_returns.append(self.get_avg_episode_return(env))
 
             if epoch % self.save_model_interval == 0:
-                actor_path = 'trained_models/PPO/actor_{}_epochs.pkl'.format(epoch)
-                critic_path = 'trained_models/PPO/critic_{}_epochs.pkl'.format(epoch)
+                # saving models
+                actor_path = 'trained_models/PPO/{}_actor_{}_epochs.pkl'.format(epoch, env_name)
+                critic_path = 'trained_models/PPO/{}_critic_{}_epochs.pkl'.format(epoch, env_name)
                 torch.save(self.actor.state_dict(), actor_path)
-
                 torch.save(self.critic.state_dict(), critic_path)
+
             print(f'Epoch exec time {time() - epoch_start_time}s')
 
         print("Exec time: {:.3f}s".format(time() - start_time))
