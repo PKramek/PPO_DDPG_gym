@@ -291,8 +291,8 @@ class PPOAgent(Agent):
 
             if epoch % self.save_model_interval == 0:
                 # saving models
-                actor_path = 'trained_models/PPO/{}_actor_{}_epochs.pkl'.format(epoch, env_name)
-                critic_path = 'trained_models/PPO/{}_critic_{}_epochs.pkl'.format(epoch, env_name)
+                actor_path = 'trained_models/PPO/{}_actor_{}_epochs.pkl'.format(env_name, epoch)
+                critic_path = 'trained_models/PPO/{}_critic_{}_epochs.pkl'.format(env_name, epoch)
                 torch.save(self.actor.state_dict(), actor_path)
                 torch.save(self.critic.state_dict(), critic_path)
 
