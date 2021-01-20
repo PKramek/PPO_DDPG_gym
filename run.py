@@ -2,6 +2,7 @@ import gym
 import torch
 
 from Agents.PPO.ppoagent import PPOAgent
+from Agents.DDPG.ddpgagent import DDPGAgent
 
 assert torch.cuda.is_available()
 
@@ -40,4 +41,39 @@ agent = PPOAgent(
 print(agent.actor)
 print(agent.critic)
 
-agent.play(env, 'output_models/actor_2500.pkl', 'output_models/critic_2500.pkl')
+def get_ddpg_agent():
+    epochs_num = 2500
+    horizon_len = 4000
+    timesteps_per_epoch = 4000
+    actor_lr = 1e-3
+    critic_lr = 1e-3
+    start_steps = 10000
+    action_noise = 0.1
+    max_ep_length = 1000
+    update_after = 1000
+    update_every = 50
+    update_times = 50
+    batch_size = 100
+    gamma = 0.99
+    polyak = 0.995
+
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    action_limit = env.action_space.high[0]
+
+    ddpgagent = DDPGAgent(
+        state_dim, action_dim, action_limit, epochs_num, horizon_len, timesteps_per_epoch, actor_lr, critic_lr,
+        start_steps, action_noise, max_ep_length, update_after, update_every, update_times, batch_size, gamma, polyak)
+
+    print(ddpgagent.actor_critic)
+    return ddpgagent
+
+
+env = gym.make('HalfCheetah-v2')
+
+
+# agent = get_ppo_agent()
+agent = get_ddpg_agent()
+
+# agent.play(env, 'output_models/actor_2500.pkl', 'output_models/critic_2500.pkl')
+agent.play(env, 'output_models/ddpg/actor_critic_100.pkl')
