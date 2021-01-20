@@ -76,4 +76,4 @@ env = gym.make('HalfCheetah-v2')
 agent = get_ddpg_agent()
 
 # agent.play(env, 'output_models/actor_2500.pkl', 'output_models/critic_2500.pkl')
-agent.play(env, 'output_models/ddpg/actor_critic_100.pkl')
+agent.play(env, 'output_models/DDPG/Swimmer-v2_actor_critic_100_epochs.pkl')
