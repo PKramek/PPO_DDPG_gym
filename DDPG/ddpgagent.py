@@ -91,7 +91,7 @@ class DDPGAgent:
             q_pi_targ = self.ac_target.q(o2, self.ac_target.pi(o2))
             backup = r + self.gamma * (1 - d) * q_pi_targ
 
-        loss_q = ((q - backup)**2).mean()
+        loss_q = ((q - backup) ** 2).mean()
 
         return loss_q
 
@@ -122,57 +122,72 @@ class DDPGAgent:
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
-    def run(self, env):
+    def run(self, env, path, epoch):
+        starting_timestep = 1
+        if path is not None:
+            self.actor_critic.load_state_dict(torch.load(path))
+            starting_timestep = epoch * self.timesteps_per_epoch
+
+        total_steps = self.epochs_num * self.timesteps_per_epoch
+        state, ep_ret, ep_len = env.reset(), 0, 0
+        done = self.memory.get()
+        loss_q_old, loss_pi_old = self.compute_loss_q(done), self.compute_loss_pi(done)
         start_time = time()
-        state, ep_return, ep_length = env.reset(), 0, 0
-        for epoch in range(1, self.epochs_num + 1):
-            d = self.memory.get()
-            loss_q_old, loss_pi_old = self.compute_loss_q(d), self.compute_loss_pi(d)
 
-            print("*" * 50 + 'EPOCH {}'.format(epoch) + "*" * 50)
+        for t in range(starting_timestep, total_steps):
+            if t > self.start_steps:
+                action = self.get_action(state, self.action_noise)
+            else:
+                action = env.action_space.sample()
 
-            for timestep in range(self.timesteps_per_epoch):
-                # env.render()
+            next_state, reward, done, _ = env.step(action)
+            ep_ret += reward
+            ep_len += 1
 
-                if timestep > self.start_steps:
-                    action = self.get_action(state, self.action_noise)
-                else:
-                    action = env.action_space.sample()
+            done = False if ep_len == self.max_ep_length else done
 
-                next_state, reward, done, _ = env.step(action)
-                ep_return += reward
-                ep_length += 1
+            self.memory.store(state, action, reward, next_state, done)
 
-                done = False if ep_length == self.max_ep_length else done
+            state = next_state
 
-                self.memory.store(state, action, reward, next_state, done)
+            if done or (ep_len == self.max_ep_length):
+                print("EpRet: {}, EpLen: {}".format(ep_ret, ep_len))
+                state, ep_ret, ep_len = env.reset(), 0, 0
 
-                state = next_state
+            if t >= self.update_after and t % self.update_every == 0:
+                for _ in range(self.update_every):
+                    batch = self.memory.sample_batch(self.batch_size)
+                    self.update(data=batch)
 
-                if done or (ep_length == self.max_ep_length):
-                    print("Episode return: {}, Episode_len: {}, Mean return per step: {}".format(
-                        ep_return,
-                        ep_length,
-                        ep_return / float(ep_length)))
-                    state, ep_return, ep_length = env.reset(), 0, 0
+            if (t + 1) % self.timesteps_per_epoch == 0:
+                epoch = (t + 1) // self.timesteps_per_epoch
 
-                if timestep >= self.update_after and timestep % self.update_every == 0:
-                    for _ in range(self.update_times):
-                        batch = self.memory.sample_batch(self.batch_size)
-                        self.update(batch)
+                if (epoch % 50 == 0) or (epoch == self.epochs_num):
+                    ac_path = 'output_models/ddpg/actor_critic_{}.pkl'.format(epoch)
+                    torch.save(self.actor_critic.state_dict(), ac_path)
 
-            d = self.memory.get()
-            loss_q, loss_pi = self.compute_loss_q(d), self.compute_loss_pi(d)
-            print('Q loss: {:.6f}, Pi loss : {:.6f}, Delta loss q: {:.6f} Delta loss pi: {:.6f}'.format(
-                loss_q_old, loss_pi_old, loss_q - loss_q_old, loss_pi - loss_pi_old))
-            print('End of an epoch\n')
+                data = self.memory.get()
+                loss_q, loss_pi = self.compute_loss_q(data), self.compute_loss_pi(data)
+                print("*" * 50 + 'EPOCH {}'.format(epoch) + "*" * 50)
+                print('Q loss: {:.6f}, Pi loss : {:.6f}, Delta loss q: {:.6f} Delta loss pi: {:.6f}'.format(
+                    loss_q, loss_pi, loss_q - loss_q_old, loss_pi - loss_pi_old))
+                print("Exec time: {:.3f}s".format(time() - start_time))
+                loss_q_old, loss_pi_old = loss_q, loss_pi
+                start_time = time()
 
-            if epoch % 100 == 0:
-                ac_path = 'output_models/ddpg/actor_critic_{}.pkl'.format(epoch)
-                torch.save(self.actor_critic.state_dict(), ac_path)
+    def play(self, env, actor_critic_model_path):
+        self.actor_critic.load_state_dict(torch.load(actor_critic_model_path))
 
-        print("Exec time: {:.3f}s".format(time() - start_time))
-        env.close()
+        for i in range(self.epochs_num):
+            o, ep_ret, ep_len = env.reset(), 0, 0
+            for j in range(self.timesteps_per_epoch):
+                a = self.get_action(o, self.action_noise)
+                o2, r, d, _ = env.step(a)
+                o = o2
+                env.render()
+                d = False if ep_len == self.max_ep_length else d
+                if d:
+                    break
 
     def play(self, env, actor_critic_model_path):
         self.actor_critic.load_state_dict(torch.load(actor_critic_model_path))
@@ -182,7 +197,7 @@ class DDPGAgent:
             for j in range(self.timesteps_per_epoch):
                 action = self.get_action(state, self.action_noise)
 
-                next_state, reward, done = env.step(action)
+                next_state, reward, done, _ = env.step(action)
                 ep_return += reward
                 ep_length += 1
 

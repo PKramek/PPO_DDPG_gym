@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 
-def mlPerceptron(sizes, activation, output_activation=nn.Identity):
+def ml_perceptron(sizes, activation, output_activation):
     layers = []
     for j in range(len(sizes)-1):
         action = activation if j < len(sizes)-2 else output_activation
@@ -12,13 +12,12 @@ def mlPerceptron(sizes, activation, output_activation=nn.Identity):
     return nn.Sequential(*layers)
 
 
-
 class Actor(nn.Module):
 
     def __init__(self, state_dim, action_dim, hidden_sizes, activation, action_limit):
         super().__init__()
         pi_sizes = [state_dim] + list(hidden_sizes) + [action_dim]
-        self.pi = mlPerceptron(pi_sizes, activation, nn.Tanh)
+        self.pi = ml_perceptron(pi_sizes, activation, nn.Tanh)
         self.action_limit = action_limit
 
     def forward(self, state):
@@ -29,7 +28,7 @@ class QFunction(nn.Module):
 
     def __init__(self, state_dim, action_dim, hidden_sizes, activation):
         super().__init__()
-        self.q = mlPerceptron([state_dim + action_dim] + list(hidden_sizes) + [1], activation)
+        self.q = ml_perceptron([state_dim + action_dim] + list(hidden_sizes) + [1], activation, nn.Identity)
 
     def forward(self, state, action):
         q = self.q(torch.cat([state, action], dim=-1))
