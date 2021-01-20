@@ -4,6 +4,7 @@ import gym
 from gym import envs
 
 from Agents.PPO.ppoagent import PPOAgent
+from Agents.DDPG.ddpgagent import DDPGAgent
 
 gym.envs.register(
     id='DoublePrecisionSwimmer-v2',
@@ -11,11 +12,6 @@ gym.envs.register(
     max_episode_steps=2000
 )
 
-
-# IN DDPG
-# TODO Add base class to DDPG
-# TODO Implement all abstract methods in DDPG
-# TODO Add Configuration in config.ini using util.py file
 
 def cut_timestep_in_half(env):
     env.model.opt.timestep = env.model.opt.timestep / 2
@@ -60,7 +56,10 @@ parser.add_argument('-cp', '--critic-path', type=str, default=None,
 
 if __name__ == '__main__':
 
-    algorithms_lookup = {'PPO': PPOAgent}  # TODO add DDPG to lookup
+    algorithms_lookup = {
+        'PPO': PPOAgent,
+        'DDPG': DDPGAgent
+    }
     args = parser.parse_args()
 
     algorithm = algorithms_lookup.get(args.algorithm, None)
