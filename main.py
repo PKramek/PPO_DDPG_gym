@@ -87,7 +87,11 @@ if __name__ == '__main__':
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
 
+    print(f'state_dim: {state_dim}, action_dim: {action_dim}')
+
     agent = algorithm.from_config_file('config.ini', section, state_dim, action_dim, env_spec.max_episode_steps)
+    print(agent.critic.model)
+    print(agent.actor.model)
 
     if args.play:
         assert args.actor_path is not None, 'If agent is used in play mode path to actor model must be provided'

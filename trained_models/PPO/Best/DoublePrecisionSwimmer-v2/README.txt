@@ -1,0 +1,1 @@
+python main.py -a PPO -e DoublePrecisionSwimmer-v2 -p -ap ./trained_models/PPO/Best/DoublePrecisionSwimmer-v2/DoublePrecisionSwimmer-v2_actor_1000_epochs.pkl -cp ./trained_models/PPO/Best/DoublePrecisionSwimmer-v2/DoublePrecisionSwimmer-v2_critic_1000_epochs.pkl

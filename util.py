@@ -4,17 +4,30 @@ import configparser
 config = configparser.ConfigParser()
 
 ######################## PPO #######################
-horizon_len = 4000
-epochs = 250
+# horizon_len = 4000
+# epochs = 250
+# gamma = 0.99
+# epsilon = 0.2
+# lambda_ = 0.95
+# actor_learning_rate = 1e-3
+# critic_learning_rate = 1e-3
+# train_actor_iterations = 100
+# train_critic_iterations = 100
+# minibatch_size = 64
+# hidden_size = 64
+
+horizon_len = 2000
+epochs = 500
 gamma = 0.99
 epsilon = 0.2
 lambda_ = 0.95
-actor_learning_rate = 1e-3
-critic_learning_rate = 1e-3
-train_actor_iterations = 80
-train_critic_iterations = 80
+actor_learning_rate = 3e-4
+critic_learning_rate = 3e-4
+train_actor_iterations = 100
+train_critic_iterations = 100
 minibatch_size = 64
 hidden_size = 64
+
 
 config['PPO'] = {
     'horizon_length': horizon_len,

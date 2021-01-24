@@ -1,0 +1,13 @@
+PPO best results (116.3) for:
+
+horizon_length = 2000
+epochs = 500
+gamma = 0.99
+epsilon = 0.2
+lambda = 0.95
+actor_learning_rate = 0.0003
+critic_learning_rate = 0.0003
+train_actor_iterations = 100
+train_critic_iterations = 100
+minibatch_size = 64
+hidden_size = 64
