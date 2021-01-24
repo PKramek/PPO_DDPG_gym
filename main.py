@@ -3,8 +3,8 @@ import argparse
 import gym
 from gym import envs
 
-from Agents.PPO.ppoagent import PPOAgent
 from Agents.DDPG.ddpgagent import DDPGAgent
+from Agents.PPO.ppoagent import PPOAgent
 
 gym.envs.register(
     id='DoublePrecisionSwimmer-v2',
@@ -89,7 +89,8 @@ if __name__ == '__main__':
     action_dim = env.action_space.shape[0]
     action_limit = env.action_space.high[0]
 
-    agent = algorithm.from_config_file('config.ini', section, state_dim, action_dim, action_limit, env_spec.max_episode_steps)
+    agent = algorithm.from_config_file('config.ini', section, state_dim, action_dim, action_limit,
+                                       env_spec.max_episode_steps)
 
     if args.play:
         if args.algorithm == 'PPO':
