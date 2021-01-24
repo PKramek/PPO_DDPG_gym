@@ -45,9 +45,53 @@ config['PPO_DEFAULT'] = {
 }
 
 ######################## DDPG #######################
+epochs_num = 10
+horizon_len = 100000
+episodes_in_epoch = 4
+actor_lr = 1e-3
+critic_lr = 1e-3
+start_steps = 10000
+action_noise = 0.1
+max_ep_length = 1000
+update_after = 1000
+update_every = 50
+update_times = 50
+batch_size = 100
+gamma = 0.99
+polyak = 0.995
 
-config['DDPG'] = {}
-config['DDPG_DEFAULT'] = {}
+config['DDPG'] = {
+    'epochs_num': epochs_num,
+    'horizon_len': horizon_len,
+    'episodes_in_epoch': episodes_in_epoch,
+    'actor_lr': actor_lr,
+    'critic_lr': critic_lr,
+    'start_steps': start_steps,
+    'action_noise': action_noise,
+    'max_ep_length': max_ep_length,
+    'update_after': update_after,
+    'update_every': update_every,
+    'update_times': update_times,
+    'batch_size': batch_size,
+    'gamma': gamma,
+    'polyak': polyak
+}
+config['DDPG_DEFAULT'] = {
+    'epochs_num': epochs_num,
+    'horizon_len': horizon_len,
+    'episodes_in_epoch': episodes_in_epoch,
+    'actor_lr': actor_lr,
+    'critic_lr': critic_lr,
+    'start_steps': start_steps,
+    'action_noise': action_noise,
+    'max_ep_length': max_ep_length,
+    'update_after': update_after,
+    'update_every': update_every,
+    'update_times': update_times,
+    'batch_size': batch_size,
+    'gamma': gamma,
+    'polyak': polyak
+}
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
