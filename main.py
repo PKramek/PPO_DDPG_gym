@@ -53,6 +53,8 @@ parser.add_argument('-ap', '--actor-path', type=str, default=None,
                     help='Path to pickle file containing trained actor model')
 parser.add_argument('-cp', '--critic-path', type=str, default=None,
                     help='Path to pickle file containing trained critic model')
+parser.add_argument('-acp', '--actor-critic-path', type=str, default=None,
+                    help='Path to pickle file containing trained actor-critic model')
 
 if __name__ == '__main__':
 
@@ -85,14 +87,22 @@ if __name__ == '__main__':
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
+    action_limit = env.action_space.high[0]
 
-    agent = algorithm.from_config_file('config.ini', section, state_dim, action_dim, env_spec.max_episode_steps)
+    agent = algorithm.from_config_file('config.ini', section, state_dim, action_dim, action_limit, env_spec.max_episode_steps)
 
     if args.play:
-        assert args.actor_path is not None, 'If agent is used in play mode path to actor model must be provided'
-        assert args.critic_path is not None, 'If agent is used in play mode path to critic model must be provided'
+        if args.algorithm == 'PPO':
+            assert args.actor_path is not None, 'If agent is used in play mode path to actor model must be provided'
+            assert args.critic_path is not None, 'If agent is used in play mode path to critic model must be provided'
 
-        agent.play(env, args.actor_path, args.critic_path)
+            agent.play(env, args.actor_path, args.critic_path)
+        elif args.algorithm == 'DDPG':
+            assert args.actor_critic_path is not None, 'If agent is used in play mode path to critic model must be provided'
+            agent.play(env, args.actor_critic_path)
+            agent.plot_episode_returns(f'./results/{env_spec.id}-{args.algorithm}.png')
+        else:
+            raise ValueError(f"Unknown Gym environment: {args.environment}")
     else:
         agent.train(env)
 

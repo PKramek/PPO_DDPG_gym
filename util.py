@@ -45,9 +45,9 @@ config['PPO_DEFAULT'] = {
 }
 
 ######################## DDPG #######################
-epochs_num = 2500
-horizon_len = 1e6
-timesteps_per_epoch = 4000
+epochs_num = 10
+horizon_len = 100000
+episodes_in_epoch = 4
 actor_lr = 1e-3
 critic_lr = 1e-3
 start_steps = 10000
@@ -63,7 +63,7 @@ polyak = 0.995
 config['DDPG'] = {
     'epochs_num': epochs_num,
     'horizon_len': horizon_len,
-    'timesteps_per_epoch': timesteps_per_epoch,
+    'episodes_in_epoch': episodes_in_epoch,
     'actor_lr': actor_lr,
     'critic_lr': critic_lr,
     'start_steps': start_steps,
@@ -79,7 +79,7 @@ config['DDPG'] = {
 config['DDPG_DEFAULT'] = {
     'epochs_num': epochs_num,
     'horizon_len': horizon_len,
-    'timesteps_per_epoch': timesteps_per_epoch,
+    'episodes_in_epoch': episodes_in_epoch,
     'actor_lr': actor_lr,
     'critic_lr': critic_lr,
     'start_steps': start_steps,

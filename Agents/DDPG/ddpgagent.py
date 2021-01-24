@@ -50,7 +50,7 @@ class DDPGMemory:
 
 class DDPGAgent(Agent):
     def __init__(self, state_dim: int, action_dim: int, action_limit: int, epochs_num: int, horizon_len: int,
-                 timesteps_per_epoch: int, actor_lr: float, critic_lr: float,
+                 episodes_per_epoch: int, timesteps_per_episode: int, actor_lr: float, critic_lr: float,
                  start_steps: int, action_noise: float, max_ep_length: int, update_after: int, update_every: int,
                  update_times: int, batch_size: int, gamma: float, polyak: float, activation=None,
                  device=None, benchmark_interval: int = 10, save_model_interval=50):
@@ -59,7 +59,8 @@ class DDPGAgent(Agent):
         self.action_dim = action_dim
         self.action_limit = action_limit
         self.epochs_num = epochs_num
-        self.timesteps_per_epoch = timesteps_per_epoch
+        self.episodes_per_epoch = episodes_per_epoch
+        self.timesteps_per_episode = timesteps_per_episode
         self.start_steps = start_steps
         self.action_noise = action_noise
         self.max_ep_length = max_ep_length
@@ -91,14 +92,14 @@ class DDPGAgent(Agent):
         self.save_model_interval = save_model_interval
 
     @classmethod
-    def from_config_file(cls, config_file_path, section, state_dim, action_dim):
+    def from_config_file(cls, config_file_path, section, state_dim, action_dim, action_limit, timesteps_per_episode):
 
         config_file = configparser.ConfigParser()
         config_file.read(config_file_path)
 
         epochs_num = config_file.getint(section, 'epochs_num')
         horizon_len = config_file.getint(section, 'horizon_len')
-        timesteps_per_epoch = config_file.getint(section, 'timesteps_per_epoch')
+        episodes_in_epoch = config_file.getint(section, 'episodes_in_epoch')
         actor_lr = config_file.getfloat(section, 'actor_lr')
         critic_lr = config_file.getfloat(section, 'critic_lr')
         start_steps = config_file.getint(section, 'start_steps')
@@ -112,7 +113,7 @@ class DDPGAgent(Agent):
         polyak = config_file.getfloat(section, 'polyak')
 
         return cls(
-            state_dim, action_dim, epochs_num, horizon_len, timesteps_per_epoch, actor_lr, critic_lr,
+            state_dim, action_dim, action_limit, epochs_num, horizon_len, episodes_in_epoch, timesteps_per_episode, actor_lr, critic_lr,
             start_steps, action_noise, max_ep_length, update_after, update_every, update_times, batch_size,
             gamma, polyak)
 
@@ -167,21 +168,16 @@ class DDPGAgent(Agent):
         with torch.no_grad():
             for i in range(n):
                 state, ep_return, ep_length = env.reset(), 0, 0
-                for timestep in range(self.timesteps_per_epoch):
+                for timestep in range(self.timesteps_per_episode):
                     state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
-                    action, _, _ = self.get_action(state, self.action_noise)
+                    action = self.get_action(state, self.action_noise)
 
-                    action_cpu = action.cpu()
-                    next_state, reward, done, _ = env.step(action_cpu)
+                    state, reward, done, _ = env.step(action)
                     ep_return += reward
                     ep_length += 1
 
                     done = False if ep_length == self.max_ep_length else done
 
-                    self.memory.store(state, action, reward, next_state, done)
-
-                    state = next_state
-                    env.render()
                     if done:
                         break
 
@@ -194,13 +190,15 @@ class DDPGAgent(Agent):
         return avg_return
 
     def train(self, env):
-        total_steps = self.epochs_num * self.timesteps_per_epoch
+        timesteps_per_epoch = self.timesteps_per_episode * self.episodes_per_epoch
+        total_steps = self.epochs_num * timesteps_per_epoch
         state, ep_ret, ep_len = env.reset(), 0, 0
         done = self.memory.get()
         loss_q_old, loss_pi_old = self.compute_loss_q(done), self.compute_loss_pi(done)
         env_name = env.spec.id
         start_time = time()
 
+        print("*" * 50 + 'EPOCH 1' + "*" * 50)
         for t in range(total_steps):
             if t > self.start_steps:
                 action = self.get_action(state, self.action_noise)
@@ -226,21 +224,21 @@ class DDPGAgent(Agent):
                     batch = self.memory.sample_batch(self.batch_size)
                     self.update(data=batch)
 
-            if (t + 1) % self.timesteps_per_epoch == 0:
-                epoch = (t + 1) // self.timesteps_per_epoch
+            if (t + 1) % timesteps_per_epoch == 0:
+                epoch = (t + 1) // timesteps_per_epoch
 
                 if epoch % self.benchmark_interval == 0:
                     self.avg_episode_returns.append(self.get_avg_episode_return(env))
                 if epoch % self.save_model_interval == 0:
-                    ac_path = 'trained_models/DDPG/{}_actor_critic_{}.pkl'.format(env_name, epoch)
+                    ac_path = 'trained_models/DDPG/{}_actor_critic_{}_epochs.pkl'.format(env_name, epoch)
                     torch.save(self.actor_critic.state_dict(), ac_path)
 
                 data = self.memory.get()
                 loss_q, loss_pi = self.compute_loss_q(data), self.compute_loss_pi(data)
-                print("*" * 50 + 'EPOCH {}'.format(epoch+1) + "*" * 50)
                 print('Q loss: {:.6f}, Pi loss : {:.6f}, Delta loss q: {:.6f} Delta loss pi: {:.6f}'.format(
                     loss_q, loss_pi, loss_q - loss_q_old, loss_pi - loss_pi_old))
                 print("Exec time: {:.3f}s".format(time() - start_time))
+                print("*" * 50 + 'EPOCH {}'.format(epoch+1) + "*" * 50)
                 loss_q_old, loss_pi_old = loss_q, loss_pi
                 start_time = time()
 
@@ -249,7 +247,7 @@ class DDPGAgent(Agent):
 
         for i in range(self.epochs_num):
             state, ep_return, ep_length = env.reset(), 0, 0
-            for j in range(self.timesteps_per_epoch):
+            for j in range(self.timesteps_per_episode * self.episodes_per_epoch):
                 action = self.get_action(state, self.action_noise)
 
                 next_state, reward, done, _ = env.step(action)
@@ -264,9 +262,10 @@ class DDPGAgent(Agent):
                 env.render()
                 if done:
                     break
+            self.avg_episode_returns.append(self.get_avg_episode_return(env))
 
     def plot_episode_returns(self, path=None):
-        x_axis = [x * self.benchmark_interval * self.timesteps_per_epoch for x in range(len(self.avg_episode_returns))]
+        x_axis = [x * self.benchmark_interval * self.timesteps_per_episode * self.episodes_per_epoch for x in range(len(self.avg_episode_returns))]
         plt.plot(x_axis, self.avg_episode_returns)
         plt.xlabel('Timestep')
         plt.ylabel('Avg. episode return')

@@ -125,7 +125,7 @@ class PPOAgent(Agent):
         self.save_model_interval = save_model_interval
 
     @classmethod
-    def from_config_file(cls, config_file_path, section, state_dim, action_dim, timesteps_per_epoch):
+    def from_config_file(cls, config_file_path, section, state_dim, action_dim, action_lim, timesteps_per_epoch):
 
         config_file = configparser.ConfigParser()
         config_file.read(config_file_path)
