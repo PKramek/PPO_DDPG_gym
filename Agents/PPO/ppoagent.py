@@ -177,9 +177,9 @@ class PPOAgent(Agent):
     def update(self):
         data = self.memory.get()
         all_data_indexes = np.arange(self.horizon_len)
-        actor_loss_old = self.actor_loss(data, all_data_indexes)
-        actor_loss_old = actor_loss_old.item()
-        critic_loss_old = self.critic_loss(data, all_data_indexes)
+
+        actor_loss_old = self.actor_loss(data, all_data_indexes).item()
+        critic_loss_old = self.critic_loss(data, all_data_indexes).item()
 
         for i in range(self.train_actor_iterations):
             minibatch_indexes = self.get_minibatch_indicies()
@@ -195,11 +195,8 @@ class PPOAgent(Agent):
             critic_loss.backward()
             self.critic_optimizer.step()
 
-        with torch.no_grad():
-            actor_loss = self.actor_loss(data, all_data_indexes)
-            actor_loss = actor_loss.item()
-            critic_loss = self.critic_loss(data, all_data_indexes)
-            critic_loss = critic_loss.item()
+        actor_loss = self.actor_loss(data, all_data_indexes).item()
+        critic_loss = self.critic_loss(data, all_data_indexes).item()
 
         print('Actor loss: {:.3f}, Critic loss : {:.3f}, Delta loss actor: {:.3f} Delta loss critic: {:.3f}'.format(
             actor_loss_old, critic_loss_old, actor_loss - actor_loss_old,
