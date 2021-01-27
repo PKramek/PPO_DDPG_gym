@@ -290,7 +290,7 @@ class PPOAgent(Agent):
             self.update()
 
             if epoch % self.benchmark_interval == 0:
-                self.avg_episode_returns.append(self.get_avg_episode_return(env))
+                self.avg_episode_returns.append(self.get_avg_episode_return(env, double_precision=double_precision))
 
             if epoch % self.save_model_interval == 0:
                 # saving models

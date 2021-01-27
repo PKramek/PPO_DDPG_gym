@@ -236,7 +236,7 @@ class DDPGAgent(Agent):
                 epoch = (t + 1) // timesteps_per_epoch
 
                 if epoch % self.benchmark_interval == 0:
-                    self.avg_episode_returns.append(self.get_avg_episode_return(env))
+                    self.avg_episode_returns.append(self.get_avg_episode_return(env, double_precision=double_precision))
                 if epoch % self.save_model_interval == 0:
                     ac_path = 'trained_models/DDPG/{}_actor_critic_{}_epochs.pkl'.format(env_name, epoch)
                     torch.save(self.actor_critic.state_dict(), ac_path)
