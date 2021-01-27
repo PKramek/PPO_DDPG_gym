@@ -301,6 +301,7 @@ class PPOAgent(Agent):
         self.actor.load_state_dict(torch.load(actor_model_path))
         self.critic.load_state_dict(torch.load(critic_model_path))
 
+
         for i in range(self.epochs_num):
             state, ep_return, ep_length = env.reset(), 0, 0
             for j in range(self.timesteps_per_epoch):
@@ -308,10 +309,12 @@ class PPOAgent(Agent):
                 action, value, log_probability = self.actor_critic_step(step)
                 state, reward, done, _ = env.step(action)
 
+                ep_return += reward
                 if done:
                     break
 
                 env.render()
+            print(ep_return)
 
     def plot_episode_returns(self, path=None):
         x_axis = [x * self.benchmark_interval * self.horizon_len for x in range(len(self.avg_episode_returns))]
