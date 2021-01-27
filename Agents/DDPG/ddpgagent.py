@@ -164,7 +164,7 @@ class DDPGAgent(Agent):
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
-    def get_avg_episode_return(self, env, n=10):
+    def get_avg_episode_return(self, env, n=10, double_precision=False):
         print(f'Calculating average episode return...')
         episodes_return = np.ones(n, dtype=np.float32)
         with torch.no_grad():
@@ -186,12 +186,14 @@ class DDPGAgent(Agent):
                 episodes_return[i] = ep_return
 
         avg_return = np.mean(episodes_return)
+        if double_precision:
+            avg_return /= 2
 
         print(f'Average episode return = {avg_return: 3f}\n')
 
         return avg_return
 
-    def train(self, env):
+    def train(self, env, double_precision):
         timesteps_per_epoch = self.timesteps_per_episode * self.episodes_per_epoch
         total_steps = self.epochs_num * timesteps_per_epoch
         state, ep_ret, ep_len = env.reset(), 0, 0
@@ -208,6 +210,10 @@ class DDPGAgent(Agent):
                 action = env.action_space.sample()
 
             next_state, reward, done, _ = env.step(action)
+
+            if double_precision:
+                reward /= 2
+
             ep_ret += reward
             ep_len += 1
 
@@ -244,7 +250,7 @@ class DDPGAgent(Agent):
                 loss_q_old, loss_pi_old = loss_q, loss_pi
                 start_time = time()
 
-    def play(self, env, actor_critic_model_path):
+    def play(self, env, actor_critic_model_path, double_precision=False):
         self.actor_critic.load_state_dict(torch.load(actor_critic_model_path))
 
         for i in range(self.epochs_num):
@@ -264,6 +270,9 @@ class DDPGAgent(Agent):
                 env.render()
                 if done:
                     break
+
+            if double_precision:
+                ep_return /= 2
             print(f'Episode return: {ep_return.item()}')
 
     def plot_episode_returns(self, path=None):

@@ -212,7 +212,7 @@ class PPOAgent(Agent):
 
         return action, value, log_probability
 
-    def get_avg_episode_return(self, env, n=10):
+    def get_avg_episode_return(self, env, n=10, double_precision=False):
         print(f'Calculating average episode return...')
         episodes_return = np.ones(n, dtype=np.float32)
         with torch.no_grad():
@@ -233,17 +233,18 @@ class PPOAgent(Agent):
                 episodes_return[i] = ep_return
 
         avg_return = np.mean(episodes_return)
+        if double_precision:
+            avg_return /= 2
 
         print(f'Average episode return = {avg_return: 3f}\n')
 
         return avg_return
 
-    def train(self, env):
+    def train(self, env, double_precision):
         start_time = time()
         state, ep_return, timestep_in_horizon = env.reset(), 0, 0
         env_name = env.spec.id
 
-        rewards = []
         self.avg_episode_returns = []
 
         for epoch in range(1, self.epochs_num + 1):
@@ -258,9 +259,11 @@ class PPOAgent(Agent):
                 action_cpu = action.cpu()
                 next_state, reward, done, _ = env.step(action_cpu)
 
+                if double_precision:
+                    reward /= 2
+
                 ep_return += reward
 
-                rewards.append(reward)
                 timestep_in_horizon += 1
 
                 self.memory.store(state, action, reward, value, log_probability)
@@ -285,7 +288,6 @@ class PPOAgent(Agent):
                     state, ep_return, timestep_in_horizon = env.reset(), 0, 0
 
             self.update()
-            print(sum(rewards) / len(reward))
 
             if epoch % self.benchmark_interval == 0:
                 self.avg_episode_returns.append(self.get_avg_episode_return(env))
@@ -301,10 +303,9 @@ class PPOAgent(Agent):
 
         print("Exec time: {:.3f}s".format(time() - start_time))
 
-    def play(self, env, actor_model_path, critic_model_path):
+    def play(self, env, actor_model_path, critic_model_path, double_precision):
         self.actor.load_state_dict(torch.load(actor_model_path))
         self.critic.load_state_dict(torch.load(critic_model_path))
-
 
         for i in range(self.epochs_num):
             state, ep_return, ep_length = env.reset(), 0, 0
@@ -318,6 +319,9 @@ class PPOAgent(Agent):
                     break
 
                 env.render()
+
+            if double_precision:
+                ep_return /= 2
             print(f'Episode return: {ep_return.item()}')
 
     def plot_episode_returns(self, path=None):

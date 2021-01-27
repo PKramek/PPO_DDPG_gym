@@ -6,7 +6,8 @@ config = configparser.ConfigParser()
 ######################## PPO #######################
 horizon_len = 4000
 epochs = 250
-gamma = 0.99
+gamma = 0.995
+double_precision_gamma = 0.999
 epsilon = 0.2
 lambda_ = 0.97
 actor_learning_rate = 1e-3
@@ -30,10 +31,10 @@ config['PPO'] = {
     'hidden_size': hidden_size
 }
 
-config['PPO_DEFAULT'] = {
+config['PPO_DoublePrecision'] = {
     'horizon_length': horizon_len,
     'epochs': epochs,
-    'gamma': gamma,
+    'gamma': double_precision_gamma,
     'epsilon': epsilon,
     'lambda': lambda_,
     'actor_learning_rate': actor_learning_rate,
@@ -58,7 +59,10 @@ update_every = 50
 update_times = 50
 batch_size = 100
 gamma = 0.99
+double_precision_gamma = 0.999
 polyak = 0.995
+
+
 
 config['DDPG'] = {
     'epochs_num': epochs_num,
@@ -76,7 +80,7 @@ config['DDPG'] = {
     'gamma': gamma,
     'polyak': polyak
 }
-config['DDPG_DEFAULT'] = {
+config['DDPG_DoublePrecision'] = {
     'epochs_num': epochs_num,
     'horizon_len': horizon_len,
     'episodes_in_epoch': episodes_in_epoch,
@@ -89,7 +93,7 @@ config['DDPG_DEFAULT'] = {
     'update_every': update_every,
     'update_times': update_times,
     'batch_size': batch_size,
-    'gamma': gamma,
+    'gamma': double_precision_gamma,
     'polyak': polyak
 }
 

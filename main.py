@@ -33,10 +33,6 @@ parser.add_argument('-a', '--algorithm', type=str, required=True,
                     help='Algorithm used to solve Gym environment',
                     choices=['PPO', 'DDPG'])
 
-parser.add_argument('-c', '--config', type=str, required=False, default=None,
-                    help='Which configuration should be used to initialize learning algorithm, if none is given version non-default version for a given algorithm will be used',
-                    choices=['PPO', 'DDPG', 'PPO_DEFAULT', 'DDPG_DEFAULT'])
-
 parser.add_argument('-e', '--environment', type=str, required=True,
                     help='What gym environment should be used, there is also additional environment provided: DoublePrecisionSwimmer-v2, which is modified version of Swimmer with double time precision')
 
@@ -68,22 +64,25 @@ if __name__ == '__main__':
     if algorithm is None:
         raise NotImplementedError(f'Algorithm {args.algorithm} not known')
 
-    if args.config is None:
-        # those names could be changed in the future
-        config_section_lookup = {'PPO': 'PPO', 'DDPG': 'DDPG'}
-        section = config_section_lookup.get(args.algorithm, None)
-    else:
-        section = args.config
-
     env_spec = get_env_spec(args.environment)
-
+    double_precision = False
     if env_spec is None:
         raise ValueError(f"Unknown Gym environment: {args.environment}")
     else:
         env = gym.make(env_spec.id)
 
-        if env_spec.id == 'DoublePrecisionSwimmer-v2':
+        double_precision = env_spec.id == 'DoublePrecisionSwimmer-v2'
+        if double_precision:
             cut_timestep_in_half(env)
+
+    config_section_lookup = {'PPO': 'PPO', 'DDPG': 'DDPG'}
+    double_precision_config_section_lookup = {'PPO': 'PPO_DoublePrecision', 'DDPG': 'DDPG_DoublePrecision'}
+    if double_precision:
+        section = double_precision_config_section_lookup.get(args.algorithm, None)
+    else:
+        section = config_section_lookup.get(args.algorithm, None)
+
+    print(f'Used section: {section}')
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -97,15 +96,15 @@ if __name__ == '__main__':
             assert args.actor_path is not None, 'If agent is used in play mode path to actor model must be provided'
             assert args.critic_path is not None, 'If agent is used in play mode path to critic model must be provided'
 
-            agent.play(env, args.actor_path, args.critic_path)
+            agent.play(env, args.actor_path, args.critic_path, double_precision)
         elif args.algorithm == 'DDPG':
             assert args.actor_critic_path is not None, 'If agent is used in play mode path to critic model must be provided'
-            agent.play(env, args.actor_critic_path)
+            agent.play(env, args.actor_critic_path, double_precision)
             agent.plot_episode_returns(f'./results/{env_spec.id}-{args.algorithm}.png')
         else:
             raise ValueError(f"Unknown Gym environment: {args.environment}")
     else:
-        agent.train(env)
+        agent.train(env, double_precision)
 
         if not args.no_plot:
             if args.plot_path is None:
