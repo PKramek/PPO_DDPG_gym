@@ -243,6 +243,7 @@ class PPOAgent(Agent):
         state, ep_return, timestep_in_horizon = env.reset(), 0, 0
         env_name = env.spec.id
 
+        rewards = []
         self.avg_episode_returns = []
 
         for epoch in range(1, self.epochs_num + 1):
@@ -258,6 +259,8 @@ class PPOAgent(Agent):
                 next_state, reward, done, _ = env.step(action_cpu)
 
                 ep_return += reward
+
+                rewards.append(reward)
                 timestep_in_horizon += 1
 
                 self.memory.store(state, action, reward, value, log_probability)
@@ -282,6 +285,7 @@ class PPOAgent(Agent):
                     state, ep_return, timestep_in_horizon = env.reset(), 0, 0
 
             self.update()
+            print(sum(rewards) / len(reward))
 
             if epoch % self.benchmark_interval == 0:
                 self.avg_episode_returns.append(self.get_avg_episode_return(env))
@@ -314,7 +318,7 @@ class PPOAgent(Agent):
                     break
 
                 env.render()
-            print(ep_return)
+            print(f'Episode return: {ep_return.item()}')
 
     def plot_episode_returns(self, path=None):
         x_axis = [x * self.benchmark_interval * self.horizon_len for x in range(len(self.avg_episode_returns))]

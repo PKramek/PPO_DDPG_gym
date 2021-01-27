@@ -1,11 +1,12 @@
 import configparser
+from copy import deepcopy
 from time import time
 
 import matplotlib.pyplot as plt
-from copy import deepcopy
 import numpy as np
 import torch
 from torch.optim import Adam
+
 from Agents.Agent import Agent
 from Agents.DDPG.model import ActorCritic
 
@@ -113,7 +114,8 @@ class DDPGAgent(Agent):
         polyak = config_file.getfloat(section, 'polyak')
 
         return cls(
-            state_dim, action_dim, action_limit, epochs_num, horizon_len, episodes_in_epoch, timesteps_per_episode, actor_lr, critic_lr,
+            state_dim, action_dim, action_limit, epochs_num, horizon_len, episodes_in_epoch, timesteps_per_episode,
+            actor_lr, critic_lr,
             start_steps, action_noise, max_ep_length, update_after, update_every, update_times, batch_size,
             gamma, polyak)
 
@@ -238,7 +240,7 @@ class DDPGAgent(Agent):
                 print('Q loss: {:.6f}, Pi loss : {:.6f}, Delta loss q: {:.6f} Delta loss pi: {:.6f}'.format(
                     loss_q, loss_pi, loss_q - loss_q_old, loss_pi - loss_pi_old))
                 print("Exec time: {:.3f}s".format(time() - start_time))
-                print("*" * 50 + 'EPOCH {}'.format(epoch+1) + "*" * 50)
+                print("*" * 50 + 'EPOCH {}'.format(epoch + 1) + "*" * 50)
                 loss_q_old, loss_pi_old = loss_q, loss_pi
                 start_time = time()
 
@@ -262,10 +264,11 @@ class DDPGAgent(Agent):
                 env.render()
                 if done:
                     break
-            self.avg_episode_returns.append(self.get_avg_episode_return(env))
+            print(f'Episode return: {ep_return.item()}')
 
     def plot_episode_returns(self, path=None):
-        x_axis = [x * self.benchmark_interval * self.timesteps_per_episode * self.episodes_per_epoch for x in range(len(self.avg_episode_returns))]
+        x_axis = [x * self.benchmark_interval * self.timesteps_per_episode * self.episodes_per_epoch for x in
+                  range(len(self.avg_episode_returns))]
         plt.plot(x_axis, self.avg_episode_returns)
         plt.xlabel('Timestep')
         plt.ylabel('Avg. episode return')
