@@ -45,7 +45,7 @@ config['PPO_DEFAULT'] = {
 }
 
 ######################## DDPG #######################
-epochs_num = 10
+epochs_num = 250
 horizon_len = 100000
 episodes_in_epoch = 4
 actor_lr = 1e-3
