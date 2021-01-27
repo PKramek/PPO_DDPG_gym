@@ -53,7 +53,7 @@ class DDPGAgent(Agent):
                  episodes_per_epoch: int, timesteps_per_episode: int, actor_lr: float, critic_lr: float,
                  start_steps: int, action_noise: float, max_ep_length: int, update_after: int, update_every: int,
                  update_times: int, batch_size: int, gamma: float, polyak: float, activation=None,
-                 device=None, benchmark_interval: int = 10, save_model_interval=50):
+                 device=None, benchmark_interval: int = 5, save_model_interval=250):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
