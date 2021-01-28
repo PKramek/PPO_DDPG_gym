@@ -50,38 +50,36 @@ class DDPGMemory:
 
 
 class DDPGAgent(Agent):
-    def __init__(self, state_dim: int, action_dim: int, action_limit: int, epochs_num: int, horizon_len: int,
-                 episodes_per_epoch: int, timesteps_per_episode: int, actor_lr: float, critic_lr: float,
-                 start_steps: int, action_noise: float, max_ep_length: int, update_after: int, update_every: int,
-                 update_times: int, batch_size: int, gamma: float, polyak: float, activation=None,
+    def __init__(self, state_dim: int, action_dim: int, action_limit: int, epochs: int, horizon_length: int,
+                 episodes_per_epoch: int, timesteps_per_episode: int, actor_learning_rate: float, critic_learning_rate: float,
+                 start_steps: int, action_noise: float, update_after: int, update_every: int, batch_size: int,
+                 gamma: float, polyak: float, hidden_size: int, activation=None,
                  device=None, benchmark_interval: int = 5, save_model_interval=250):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_limit = action_limit
-        self.epochs_num = epochs_num
+        self.epochs = epochs
         self.episodes_per_epoch = episodes_per_epoch
         self.timesteps_per_episode = timesteps_per_episode
         self.start_steps = start_steps
         self.action_noise = action_noise
-        self.max_ep_length = max_ep_length
         self.update_after = update_after
         self.update_every = update_every
-        self.update_times = update_times
         self.batch_size = batch_size
         self.gamma = gamma
         self.polyak = polyak
 
-        self.actor_critic = ActorCritic(state_dim, action_dim, action_limit, activation=activation)
+        self.actor_critic = ActorCritic(state_dim, action_dim, action_limit, (hidden_size, hidden_size), activation=activation)
         self.ac_target = deepcopy(self.actor_critic)
 
         for p in self.ac_target.parameters():
             p.requires_grad = False
 
-        self.memory = DDPGMemory(state_dim, action_dim, horizon_len)
+        self.memory = DDPGMemory(state_dim, action_dim, horizon_length)
 
-        self.pi_optimizer = Adam(self.actor_critic.pi.parameters(), lr=actor_lr)
-        self.q_optimizer = Adam(self.actor_critic.q.parameters(), lr=critic_lr)
+        self.pi_optimizer = Adam(self.actor_critic.pi.parameters(), lr=actor_learning_rate)
+        self.q_optimizer = Adam(self.actor_critic.q.parameters(), lr=critic_learning_rate)
 
         if device is None:
             self.device = torch.device('cpu')
@@ -98,26 +96,25 @@ class DDPGAgent(Agent):
         config_file = configparser.ConfigParser()
         config_file.read(config_file_path)
 
-        epochs_num = config_file.getint(section, 'epochs_num')
-        horizon_len = config_file.getint(section, 'horizon_len')
+        epochs_num = config_file.getint(section, 'epochs')
+        horizon_length = config_file.getint(section, 'horizon_length')
         episodes_in_epoch = config_file.getint(section, 'episodes_in_epoch')
-        actor_lr = config_file.getfloat(section, 'actor_lr')
-        critic_lr = config_file.getfloat(section, 'critic_lr')
+        actor_lr = config_file.getfloat(section, 'actor_learning_rate')
+        critic_lr = config_file.getfloat(section, 'critic_learning_rate')
         start_steps = config_file.getint(section, 'start_steps')
         action_noise = config_file.getfloat(section, 'action_noise')
-        max_ep_length = config_file.getint(section, 'max_ep_length')
         update_after = config_file.getint(section, 'update_after')
         update_every = config_file.getint(section, 'update_every')
-        update_times = config_file.getint(section, 'update_times')
         batch_size = config_file.getint(section, 'batch_size')
         gamma = config_file.getfloat(section, 'gamma')
         polyak = config_file.getfloat(section, 'polyak')
+        hidden_size = config_file.getint(section, 'hidden_size')
 
         return cls(
-            state_dim, action_dim, action_limit, epochs_num, horizon_len, episodes_in_epoch, timesteps_per_episode,
+            state_dim, action_dim, action_limit, epochs_num, horizon_length, episodes_in_epoch, timesteps_per_episode,
             actor_lr, critic_lr,
-            start_steps, action_noise, max_ep_length, update_after, update_every, update_times, batch_size,
-            gamma, polyak)
+            start_steps, action_noise, update_after, update_every, batch_size,
+            gamma, polyak, hidden_size)
 
     def get_action(self, state, noise_scale):
         a = self.actor_critic.act(torch.as_tensor(state, dtype=torch.float32))
@@ -178,7 +175,7 @@ class DDPGAgent(Agent):
                     ep_return += reward
                     ep_length += 1
 
-                    done = False if ep_length == self.max_ep_length else done
+                    done = False if ep_length == self.timesteps_per_episode else done
 
                     if done:
                         break
@@ -195,7 +192,7 @@ class DDPGAgent(Agent):
 
     def train(self, env, double_precision):
         timesteps_per_epoch = self.timesteps_per_episode * self.episodes_per_epoch
-        total_steps = self.epochs_num * timesteps_per_epoch
+        total_steps = self.epochs * timesteps_per_epoch
         state, ep_ret, ep_len = env.reset(), 0, 0
         done = self.memory.get()
         loss_q_old, loss_pi_old = self.compute_loss_q(done), self.compute_loss_pi(done)
@@ -217,13 +214,13 @@ class DDPGAgent(Agent):
             ep_ret += reward
             ep_len += 1
 
-            done = False if ep_len == self.max_ep_length else done
+            done = False if ep_len == self.timesteps_per_episode else done
 
             self.memory.store(state, action, reward, next_state, done)
 
             state = next_state
 
-            if done or (ep_len == self.max_ep_length):
+            if done or (ep_len == self.timesteps_per_episode):
                 print("EpRet: {}, EpLen: {}".format(ep_ret, ep_len))
                 state, ep_ret, ep_len = env.reset(), 0, 0
 
@@ -253,7 +250,7 @@ class DDPGAgent(Agent):
     def play(self, env, actor_critic_model_path, double_precision=False):
         self.actor_critic.load_state_dict(torch.load(actor_critic_model_path))
 
-        for i in range(self.epochs_num):
+        for i in range(self.epochs):
             state, ep_return, ep_length = env.reset(), 0, 0
             for j in range(self.timesteps_per_episode * self.episodes_per_epoch):
                 action = self.get_action(state, self.action_noise)
@@ -262,7 +259,7 @@ class DDPGAgent(Agent):
                 ep_return += reward
                 ep_length += 1
 
-                done = False if ep_length == self.max_ep_length else done
+                done = False if ep_length == self.timesteps_per_episode else done
 
                 self.memory.store(state, action, reward, next_state, done)
 

@@ -44,7 +44,6 @@ class ActorCritic(nn.Module):
         if activation is None:
             activation = nn.ReLU
 
-        # policy and value functions
         self.pi = Actor(state_dim, action_dim, hidden_sizes, activation, action_limit)
         self.q = QFunction(state_dim, action_dim, hidden_sizes, activation)
 

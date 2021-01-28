@@ -46,58 +46,53 @@ config['PPO_DoublePrecision'] = {
 }
 
 ######################## DDPG #######################
-epochs_num = 250
-double_precision_epochs_num = 125
-horizon_len = 100000
+epochs = 250
+double_precision_epochs = 125
+horizon_length = 100000
 episodes_in_epoch = 4
-actor_lr = 1e-3
-critic_lr = 1e-3
+actor_learning_rate = 1e-3
+critic_learning_rate = 1e-3
 start_steps = 10000
 action_noise = 0.1
-max_ep_length = 1000
-double_precision_max_ep_length = 2000
 update_after = 1000
 double_precision_update_after = 2000
 update_every = 50
-update_times = 50
 batch_size = 100
 gamma = 0.99
 double_precision_gamma = 0.994
 polyak = 0.995
-
+hidden_size = 256
 
 
 config['DDPG'] = {
-    'epochs_num': epochs_num,
-    'horizon_len': horizon_len,
+    'epochs': epochs,
+    'horizon_length': horizon_length,
     'episodes_in_epoch': episodes_in_epoch,
-    'actor_lr': actor_lr,
-    'critic_lr': critic_lr,
+    'actor_learning_rate': actor_learning_rate,
+    'critic_learning_rate': critic_learning_rate,
     'start_steps': start_steps,
     'action_noise': action_noise,
-    'max_ep_length': max_ep_length,
     'update_after': update_after,
     'update_every': update_every,
-    'update_times': update_times,
     'batch_size': batch_size,
     'gamma': gamma,
-    'polyak': polyak
+    'polyak': polyak,
+    'hidden_size': hidden_size
 }
 config['DDPG_DoublePrecision'] = {
-    'epochs_num': double_precision_epochs_num,
-    'horizon_len': horizon_len,
+    'epochs': double_precision_epochs,
+    'horizon_length': horizon_length,
     'episodes_in_epoch': episodes_in_epoch,
-    'actor_lr': actor_lr,
-    'critic_lr': critic_lr,
+    'actor_learning_rate': actor_learning_rate,
+    'critic_learning_rate': critic_learning_rate,
     'start_steps': start_steps,
     'action_noise': action_noise,
-    'max_ep_length': double_precision_max_ep_length,
     'update_after': double_precision_update_after,
     'update_every': update_every,
-    'update_times': update_times,
     'batch_size': batch_size,
     'gamma': double_precision_gamma,
-    'polyak': polyak
+    'polyak': polyak,
+    'hidden_size': hidden_size
 }
 
 with open('config.ini', 'w') as configfile:
