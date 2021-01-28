@@ -21,13 +21,17 @@ python main.py -a PPO -e Swimmer-v2
 
 ### To run PPO in play mode in Swimmer-v2 environment using trained model use:
 
-python main.py -a PPO -e Swimmer-v2 -p -ap ./trained_models/PPO/best/Swimmer-v2_actor_250_epochs.pkl -cp ./trained_models/PPO/best/Swimmer-v2_critic_250_epochs.pkl
+python main.py -a PPO -e Swimmer-v2 -p -ap ./trained_models/PPO/Swimmer-v2_actor_250_epochs.pkl -cp ./trained_models/PPO/Swimmer-v2_critic_250_epochs.pkl
 
 ### To run PPO in play mode in DoublePrecisionSwimmer-v2 using trained model use:
 
-python main.py -a PPO -e DoublePrecisionSwimmer-v2 -p -ap ./trained_models/PPO/best/DoublePrecisionSwimmer-v2_actor_250_epochs.pkl -cp ./trained_models/PPO/best/DoublePrecisionSwimmer-v2_critic_250_epochs.pkl
+python main.py -a PPO -e DoublePrecisionSwimmer-v2 -p -ap ./trained_models/PPO/DoublePrecisionSwimmer-v2_actor_250_epochs.pkl -cp ./trained_models/PPO/DoublePrecisionSwimmer-v2_critic_250_epochs.pkl
 
 ### To run DDPG in play mode in Swimmer-v2 environment using trained model use
 
-python main.py -a DDPG -e Swimmer-v2 -p -acp ./trained_models/DDPG/best/Swimmer-v2_actor_critic_250_epochs.pkl
+python main.py -a DDPG -e Swimmer-v2 -p -acp ./trained_models/DDPG/Swimmer-v2_actor_critic_250_epochs.pkl
+
+### To run DDPG in play mode in DoublePrecisionSwimmer-v2 environment using trained model use
+
+python main.py -a DDPG -e DoublePrecisionSwimmer-v2 -p -acp ./trained_models/DDPG/DoublePrecisionSwimmer-v2_actor_critic_250_epochs.pkl
 
