@@ -33,5 +33,5 @@ python main.py -a DDPG -e Swimmer-v2 -p -acp ./trained_models/DDPG/Swimmer-v2_ac
 
 ### To run DDPG in play mode in DoublePrecisionSwimmer-v2 environment using trained model use
 
-python main.py -a DDPG -e DoublePrecisionSwimmer-v2 -p -acp ./trained_models/DDPG/DoublePrecisionSwimmer-v2_actor_critic_250_epochs.pkl
+python main.py -a DDPG -e DoublePrecisionSwimmer-v2 -p -acp ./trained_models/DDPG/DoublePrecisionSwimmer-v2_actor_critic_125_epochs.pkl
 
