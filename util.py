@@ -57,7 +57,7 @@ action_noise = 0.1
 update_after = 1000
 double_precision_update_after = 2000
 update_every = 50
-batch_size = 100
+minibatch_size = 100
 gamma = 0.99
 double_precision_gamma = 0.994
 polyak = 0.995
@@ -74,7 +74,7 @@ config['DDPG'] = {
     'action_noise': action_noise,
     'update_after': update_after,
     'update_every': update_every,
-    'batch_size': batch_size,
+    'minibatch_size': minibatch_size,
     'gamma': gamma,
     'polyak': polyak,
     'hidden_size': hidden_size
@@ -89,7 +89,7 @@ config['DDPG_DoublePrecision'] = {
     'action_noise': action_noise,
     'update_after': double_precision_update_after,
     'update_every': update_every,
-    'batch_size': batch_size,
+    'minibatch_size': minibatch_size,
     'gamma': double_precision_gamma,
     'polyak': polyak,
     'hidden_size': hidden_size

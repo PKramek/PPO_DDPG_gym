@@ -52,7 +52,7 @@ class DDPGMemory:
 class DDPGAgent(Agent):
     def __init__(self, state_dim: int, action_dim: int, action_limit: int, epochs: int, horizon_length: int,
                  episodes_per_epoch: int, timesteps_per_episode: int, actor_learning_rate: float, critic_learning_rate: float,
-                 start_steps: int, action_noise: float, update_after: int, update_every: int, batch_size: int,
+                 start_steps: int, action_noise: float, update_after: int, update_every: int, minibatch_size: int,
                  gamma: float, polyak: float, hidden_size: int, activation=None,
                  device=None, benchmark_interval: int = 5, save_model_interval=250):
 
@@ -66,7 +66,7 @@ class DDPGAgent(Agent):
         self.action_noise = action_noise
         self.update_after = update_after
         self.update_every = update_every
-        self.batch_size = batch_size
+        self.minibatch_size = minibatch_size
         self.gamma = gamma
         self.polyak = polyak
 
@@ -105,7 +105,7 @@ class DDPGAgent(Agent):
         action_noise = config_file.getfloat(section, 'action_noise')
         update_after = config_file.getint(section, 'update_after')
         update_every = config_file.getint(section, 'update_every')
-        batch_size = config_file.getint(section, 'batch_size')
+        minibatch_size = config_file.getint(section, 'minibatch_size')
         gamma = config_file.getfloat(section, 'gamma')
         polyak = config_file.getfloat(section, 'polyak')
         hidden_size = config_file.getint(section, 'hidden_size')
@@ -113,7 +113,7 @@ class DDPGAgent(Agent):
         return cls(
             state_dim, action_dim, action_limit, epochs_num, horizon_length, episodes_in_epoch, timesteps_per_episode,
             actor_lr, critic_lr,
-            start_steps, action_noise, update_after, update_every, batch_size,
+            start_steps, action_noise, update_after, update_every, minibatch_size,
             gamma, polyak, hidden_size)
 
     def get_action(self, state, noise_scale):
@@ -226,7 +226,7 @@ class DDPGAgent(Agent):
 
             if t >= self.update_after and t % self.update_every == 0:
                 for _ in range(self.update_every):
-                    batch = self.memory.sample_batch(self.batch_size)
+                    batch = self.memory.sample_batch(self.minibatch_size)
                     self.update(data=batch)
 
             if (t + 1) % timesteps_per_epoch == 0:
